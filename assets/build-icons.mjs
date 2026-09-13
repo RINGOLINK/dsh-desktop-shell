@@ -19,6 +19,7 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SVG_PATH = resolve(process.env.ICON_SVG ?? join(HERE, "logo.svg"));
 const OUT_DIR = resolve(process.env.ICON_OUT ?? join(HERE, ".."));
+mkdirSync(OUT_DIR, { recursive: true });
 
 /** Resolve sharp from an explicit SHARP_PATH, then the usual relative locations. */
 function requireSharp() {
