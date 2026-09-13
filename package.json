@@ -4,6 +4,15 @@
   "description": "Turn the DeepSeek Harness Web UI into a real desktop application from inside DSH: one plugin that provisions a portable launcher (native WebView2 window, tray residency, silent backend start, readiness gating, debug console) plus desktop/startup shortcuts and an in-settings install/restart panel. No Electron runtime.",
   "type": "module",
   "license": "MIT",
+  "author": "RINGOLINK",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RINGOLINK/dsh-desktop-shell.git"
+  },
+  "homepage": "https://github.com/RINGOLINK/dsh-desktop-shell#readme",
+  "bugs": {
+    "url": "https://github.com/RINGOLINK/dsh-desktop-shell/issues"
+  },
   "keywords": [
     "dsh-plugin",
     "deepseek-harness",
