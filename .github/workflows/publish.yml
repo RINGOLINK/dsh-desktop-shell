@@ -1,0 +1,36 @@
+name: publish
+
+# Tag a release (git tag v1.0.1 && git push --tags) to publish to npm with provenance.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write     # required for npm provenance attestation
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node test/install.test.mjs
+
+  npm:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # Add an automation token as the repository secret NPM_TOKEN
+      # (npmjs.com -> Access Tokens -> Granular/Automation, publish scope for this package).
+      - run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -1,0 +1,26 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    # The launcher is Windows-only, so the representative runner is Windows.
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      # No `npm ci`: this package has zero runtime dependencies by design.
+      - name: Installer + identity test suite
+        run: node test/install.test.mjs
+      - name: Published payload check
+        run: npm pack --dry-run
