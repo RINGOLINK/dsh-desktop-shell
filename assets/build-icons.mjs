@@ -3,15 +3,41 @@
 // cut-outs) on a white rounded square, so it stays legible on light and dark taskbars.
 //   DSHLauncher.ico       white rounded square + black whale
 //   DSHLauncher-debug.ico same + black/white debug badge (still monochrome)
-// Uses the profile's sharp for SVG rasterisation, then assembles an ICO container with
-// PNG-compressed entries (Vista+ format, so 256px stays crisp).
+//
+// Dev utility only — the built .ico files are committed, end users never run this.
+// Requires `sharp` for SVG rasterisation, then assembles an ICO container with
+// PNG-compressed large entries and classic DIB small entries (DIB because System.Drawing's
+// Icon/NotifyIcon cannot decode PNG-compressed ICO entries).
+//
+// Usage (from the repository root):  node assets/build-icons.mjs
+// Overrides:  SHARP_PATH=<dir whose node_modules has sharp>  ICON_SVG=<logo.svg>  ICON_OUT=<out dir>
 import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-const require = createRequire("C:/Users/54738/.dsh/profiles/web/package.json");
-const sharp = require("sharp");
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const SVG = readFileSync("C:/Users/54738/dsh-desktop/assets/logo.svg");
-const OUT_DIR = "C:/Users/54738/dsh-desktop";
+const HERE = dirname(fileURLToPath(import.meta.url));
+const SVG_PATH = resolve(process.env.ICON_SVG ?? join(HERE, "logo.svg"));
+const OUT_DIR = resolve(process.env.ICON_OUT ?? join(HERE, ".."));
+
+/** Resolve sharp from an explicit SHARP_PATH, then the usual relative locations. */
+function requireSharp() {
+  const bases = [];
+  if (process.env.SHARP_PATH) bases.push(join(resolve(process.env.SHARP_PATH), "package.json"));
+  bases.push(join(OUT_DIR, "package.json"), join(HERE, "package.json"));
+  for (const base of bases) {
+    try { return createRequire(base)("sharp"); } catch { /* try the next base */ }
+  }
+  try { return createRequire(import.meta.url)("sharp"); } catch { /* fall through */ }
+  console.error(
+    "[build-icons] 找不到 sharp。请先安装（例如 `npm i -g sharp`），" +
+    "或用 SHARP_PATH=<包含 node_modules/sharp 的目录> 指向已有安装（DSH profile 里通常带 sharp）。"
+  );
+  process.exit(1);
+}
+
+const sharp = requireSharp();
+const SVG = readFileSync(SVG_PATH);
 const BLACK = { r: 0x1a, g: 0x1a, b: 0x1a };
 const SIZES = [16, 24, 32, 48, 64, 128, 256];
 

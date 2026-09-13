@@ -58,7 +58,7 @@ create-shortcuts.generated.ps1  运行期生成的快捷方式脚本
 ## 2. 建仓 + 首次推送（本机可直接执行）
 
 ```powershell
-cd C:\Users\54738\.dsh\local-plugins\dsh-desktop-shell
+cd <你的插件目录>       # 例如 D:\dev\dsh-desktop-shell（本仓库根目录）
 
 git init -b main
 git add -A
