@@ -28,6 +28,13 @@ mkdirSync(folders.desktopDir, { recursive: true });
 mkdirSync(folders.startupDir, { recursive: true });
 mkdirSync(folders.programsDir, { recursive: true });
 
+// Pin the dsh bin the host half resolves, so the suite is deterministic on machines (and CI
+// runners) where DSH is not installed — the host route would otherwise fail to build a helper.
+const fakeDshDir = join(root, "fake-dsh");
+mkdirSync(fakeDshDir, { recursive: true });
+process.env.DSH_DESKTOP_DSH_BIN = join(fakeDshDir, "bin.js");
+writeFileSync(process.env.DSH_DESKTOP_DSH_BIN, "// stand-in for @deepseek-ai/dsh/lib/bin.js\n", "utf8");
+
 const facts = {
   port: 3099,
   nodePath: "C:\\Program Files\\nodejs\\node.exe",
