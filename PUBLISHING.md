@@ -2,6 +2,10 @@
 
 本文是把这个插件开源发布出去的可执行清单，含 DSH 生态现有的所有分发渠道调研结论。
 
+**发布状态（2026-09-13）**：GitHub 仓库 <https://github.com/RINGOLINK/dsh-desktop-shell>（public，CI 绿）；
+npm 上 **`dsh-desktop-shell@1.0.0` 已发布**（18 文件 / 373.1 kB / shasum `ae883e8b…`，干净环境 `npm i` 复核通过）；
+工作流改为 npm Trusted Publishing（OIDC），社区索引 PR 见 §1 ②。
+
 ---
 
 ## 0. 先看清楚赛道（2026-09-13 实测 npm registry）
@@ -51,11 +55,20 @@ DSH 的插件安装就是：`dsh plugin --profile web add <包名>`（底层 `pn
 
 ```bash
 npm login
-npm publish --access public        # 包名 dsh-desktop-shell（已确认可用）
-npm view dsh-desktop-shell version # 复核
+npm publish --access public        # 已发布：dsh-desktop-shell@1.0.0（2026-09-13，shasum ae883e8b…）
+npm view dsh-desktop-shell version # 复核 → 1.0.0
 ```
 
-建议同时开 `--provenance`（GitHub Actions 里）以获得供应链可信标记。
+**2FA 与首次发布**：npm 现在要求发布者账号具备 2FA 能力——账号即使显示 `two-factor auth: disabled`，
+`npm publish` 也会在 PUT 阶段返回 `E403 … Two-factor authentication or granular access token with bypass 2fa enabled is required`。
+两种可行做法：① 在 npm 账号设置里启用 2FA（Authenticator App，模式选 **Authorization and Writes**）后
+`npm publish --access public --otp=<6 位动态码>`；② 走 npm 的浏览器校验：npm CLI 只在 `stdin`/`stdout`
+都是 TTY 时才提供该分支（`npm/lib/utils/auth.js`），非交互环境可用一个把两路都伪装成 TTY 的 preload
+（同时补 `cursorTo`/`clearLine` 等游标方法，否则 npm 的 display 层会崩）启动 npm，
+它会打印 `https://www.npmjs.com/auth/cli/<uuid>` 并轮询 done-url，用户在浏览器确认后自动完成发布。
+
+**供应链**：工作流已改用 npm **Trusted Publishing（OIDC）**，仓库内不再保存 `NPM_TOKEN`；
+OIDC 发布时 npm 自动生成 provenance 证明。
 
 ### ② 社区索引 —— 进入「Workshop 商店」与 dsh-market.com（推荐做）
 
@@ -81,15 +94,19 @@ npm view dsh-desktop-shell version # 复核
   "descriptionEn": "Turn the DSH Web UI into a real desktop app: native WebView2 window, tray residency, silent backend start, readiness gating, debug console; installs the launcher and desktop/startup shortcuts automatically. No Electron runtime — 1.2 MB payload.",
   "repo": "https://github.com/RINGOLINK/dsh-desktop-shell",
   "npm": "dsh-desktop-shell",
-  "category": "utility",
-  "subcategory": "desktop"
+  "category": "utility"
 }
 ```
 
-**分类**：现有 `community.json`（55 条）的 `category` 枚举是
-`tools(20) / ui(14) / knowledge(6) / integration(6) / utility(5) / security(3) / agent(1)`，
-`subcategory` 有 `dev / chat / model / memory / panel / api / sync / access / remote / cleanup / context / terminal / …`，
-**当前没有 desktop/launcher 类**。建议提 PR 时用 `utility` + 新增 `desktop` 子类，并在 PR 说明里请维护者确认枚举（枚举定义在仓库 `scripts/community-index`）。
+`subcategory` 只在 `category` 已填且属于该 category 的合法枚举时才被接受（校验在仓库 `scripts/community-index`）：
+`utility` 只接受 `cleanup / stats / notify / net`，**没有 `desktop`**，所以条目先只填 `category`
+（填 `desktop` 会被校验拒绝，且下游读取器用同一份枚举）；需要 desktop 子类应在 PR 说明里请维护者新增枚举。
+
+**分类现状**：现有 `community.json`（58 条）的 `category` 枚举是
+`tools / ui / knowledge / integration / utility / security / agent`，其中
+`ui: terminal/chat/render/panel`、`agent: preset`、`tools: context/browser/api/model/dev`、
+`knowledge: memory/reading/qa`、`integration: remote/bridge/sync/external-ai`、
+`security: access/policy`、`utility: cleanup/stats/notify/net`。
 
 ### ③ GitHub 仓库 —— 源码主体 + 索引条目的 `repo` 必填项
 
@@ -110,8 +127,9 @@ git push -u origin main
 - 官方 developer preview 页面：<https://www.deepseek.com/harness/en/>（"Everything is a plugin"）。
 - 第三方门户/文档站（社区维护，非官方）：`deepseekdocs.com`、`deepseekagent.io` 等；可作为发布后的推广位。
 - 官方插件清单包 `@deepseek-ai/dsh-plugin-package-inventory-deepseek` 属官方组织维护，第三方不进入。
-- 注意：本机网络对 `github.com` / `dsh-market.com` 的直连会被 DNS 拦（解析到非公网 IP），
-  调研时只能用搜索片段；提 PR、发布 npm 请在能正常访问这些域名的环境操作。
+- 注意：本机 `web_fetch` 对 `github.com` / `dsh-market.com` 会因解析到非公网 IP 而拒绝，
+  但 `git` / `gh`（走本地代理）与 `registry.npmjs.org`、`docs.npmjs.com` 均正常，
+  因此拉仓库、提 PR、发 npm 不必换环境。
 
 ---
 
@@ -122,7 +140,7 @@ git push -u origin main
       `package.json` 的 `name` · `cordis.patch.yml` insert 行的 `name` ·
       `lib/client.js` 里 `__ModuleLoader__.load({ id })` · 宿主 `lib/index.js` 的 `export const name`
       —— 该不变量由测试的 `[package identity]` 段强制校验（曾因漏改第 3 个而炸掉整页）
-- [ ] `npm pack --dry-run` 输出包含 `assets/`（exe、3 个 DLL、2 个 ico、源码）——本包 17 文件 / 1.2MB
+- [ ] `npm pack --dry-run` 输出包含 `assets/`（exe、3 个 DLL、2 个 ico、源码）——本包 18 文件 / 1.2MB
 - [ ] `package.json`：`name` 未被占用、`version` 递增、`license` MIT、`keywords` 含 `dsh-plugin`
 - [ ] README.md / README.zh.md 的安装命令与包名一致
 - [ ] `dsh.engines.dsh` 与实际依赖的 DSH 版本一致（插件管理器会用它做 412 门禁）
