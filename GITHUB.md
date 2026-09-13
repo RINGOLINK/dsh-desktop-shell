@@ -75,6 +75,20 @@ git tag v1.0.0 && git push --tags
 ```
 
 > 若用 HTTPS 推送时要输密码：先执行 `gh auth setup-git` 把 gh 的凭据助手接给 git。
+>
+> **想先自己审一遍再公开**：把 `--public` 换成 `--private` 建私有仓库（本项目的实际做法），
+> 看完之后再转公开：
+> ```powershell
+> gh repo edit RINGOLINK/dsh-desktop-shell --visibility public --accept-visibility-change-consequences
+> # 或网页：Settings → General → Danger Zone → Change visibility
+> ```
+>
+> ⚠️ **`workflow` 权限坑（本项目真实踩过）**：若 gh 的 token 不含 `workflow` scope，推送含
+> `.github/workflows/*` 的提交会被拒：
+> `refusing to allow an OAuth App to create or update workflow ... without 'workflow' scope`。
+> 两种解法：① 补权限后重推——`gh auth refresh -h github.com -s workflow`（浏览器点一次授权），
+> 再 `git add .github && git commit -m "ci: add workflows" && git push`；
+> ② 用网页端 Add file → Upload files 直接上传这两个 yml（现有 `repo` 权限即可）。
 
 ## 3. 让别人"快速在线安装"的三条路
 
