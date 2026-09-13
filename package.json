@@ -1,0 +1,49 @@
+{
+  "name": "dsh-desktop-shell",
+  "version": "1.0.0",
+  "description": "Turn the DeepSeek Harness Web UI into a real desktop application from inside DSH: one plugin that provisions a portable launcher (native WebView2 window, tray residency, silent backend start, readiness gating, debug console) plus desktop/startup shortcuts and an in-settings install/restart panel. No Electron runtime.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "dsh",
+    "desktop",
+    "launcher",
+    "webview2",
+    "tray",
+    "windows"
+  ],
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./install": "./lib/install.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "assets",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node test/install.test.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    },
+    "engines": {
+      "dsh": ">=0.1.5-rc.1"
+    }
+  }
+}

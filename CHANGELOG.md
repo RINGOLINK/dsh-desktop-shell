@@ -1,0 +1,32 @@
+# Changelog
+
+All notable changes to `dsh-desktop-shell` are recorded here.
+Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
+
+## [1.0.0] — 2026-09-13
+
+First release: turn the DeepSeek Harness Web UI into a native desktop application from inside DSH.
+
+### Added
+- **Host half** — provisions the desktop shell on activation (default `%USERPROFILE%\dsh-desktop`),
+  generates `launcher.config.json` from live host facts, and exposes loopback routes
+  `GET /api/dsh-desktop/status`, `POST /api/dsh-desktop/{install,shortcuts,restart}`.
+- **Browser half** — one row in 设置 → 通用设置 (`DSH desktop shell`) with install/repair,
+  rebuild-shortcuts, restart and debug-restart, plus live status.
+- **Portable launcher** (shipped prebuilt, x64, .NET Framework 4.8):
+  WebView2 window, close-to-tray with tray-only exit, silent backend start with logging,
+  readiness gating on the backend's process-token line, automatic `--no-open`,
+  debug mode in a visible console, external-backend takeover, and a restart watchdog with backoff.
+- **Shortcuts** — desktop (main + debug), Startup and Start Menu; an existing Edge PWA shortcut is
+  preserved by renaming it to `DeepSeek Harness (Edge 应用)`.
+- **Safe replacement** of a launcher exe that is currently running (rename-swap fallback).
+- **Tests** — 27 checks covering config resolution, install, lock fallback, shortcut script,
+  restart helper, host routes and the package-identity invariant.
+- CI (Windows, Node 22/24) and a tag-driven npm publish workflow with provenance.
+
+### Notes
+- Zero runtime dependencies; the only external requirement is the WebView2 Runtime, which ships
+  with current Windows.
+- Windows-only for now (`dsh.client.platform: web`, launcher is a Windows executable).
+
+[1.0.0]: https://github.com/RINGOLINK/dsh-desktop-shell/releases/tag/v1.0.0

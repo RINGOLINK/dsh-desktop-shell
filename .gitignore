@@ -1,0 +1,16 @@
+# Runtime junk produced by the installer / launcher (never commit)
+node_modules/
+logs/
+webview2-data/
+launcher.state.json
+command.json
+self-restart.cmd
+create-shortcuts.generated.ps1
+launcher.old.exe
+*.log
+
+# Packaging / build leftovers
+*.tgz
+dist/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,8 @@
+# Keep text files normalised; mark the shipped binaries so git never mangles them
+* text=auto eol=lf
+
+*.exe binary
+*.dll binary
+*.ico binary
+*.png binary
+*.zstd binary

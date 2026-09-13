@@ -1,0 +1,9 @@
+# The dsh-desktop-shell bundle patch.
+#
+# Adding `dsh-desktop-shell` to a profile's `dsh.profile.bundles` applies this automatically:
+# the host half provisions the desktop shell, the browser half adds the 通用设置 row.
+# The entry name is the BARE package name — the client-module scanner resolves
+# `<name>/package.json`, so a subpath would be cached as "not a client package".
+- insert:
+    - id: desktop
+      name: dsh-desktop-shell
