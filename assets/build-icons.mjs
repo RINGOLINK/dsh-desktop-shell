@@ -11,7 +11,7 @@
 //
 // Usage (from the repository root):  node assets/build-icons.mjs
 // Overrides:  SHARP_PATH=<dir whose node_modules has sharp>  ICON_SVG=<logo.svg>  ICON_OUT=<out dir>
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -152,6 +152,10 @@ for (const [file, debug] of [["DSHLauncher.ico", false], ["DSHLauncher-debug.ico
   writeFileSync(`${OUT_DIR}/${file}`, buildIco(entries));
   const kinds = entries.map((e) => `${e.size}${e.size >= PNG_FROM ? "p" : "b"}`).join(" ");
   console.log(`${file}: ${entries.length} entries [${kinds}] (b=DIB, p=PNG)`);
-  writeFileSync(`${OUT_DIR}/assets/${debug ? "icon-debug" : "icon-main"}-256.png`, entries[entries.length - 1].png);
+  // 256px preview for eyeballing; the assets/ folder is created on demand so a custom
+  // ICON_OUT (e.g. a temp dir) works too.
+  const previewDir = join(OUT_DIR, "assets");
+  mkdirSync(previewDir, { recursive: true });
+  writeFileSync(join(previewDir, `${debug ? "icon-debug" : "icon-main"}-256.png`), entries[entries.length - 1].png);
 }
 console.log("done");
