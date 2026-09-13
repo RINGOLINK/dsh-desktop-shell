@@ -1,5 +1,22 @@
 # dsh-desktop-shell
 
+**把 DeepSeek Harness 的 WebUI 变成真正的桌面应用** —— 以 DSH 插件的形式，装完即用。
+
+装上这个插件，它会在你的用户目录落地一个便携启动器（已预编译，无需你本机编译）、按当前运行环境生成配置，
+并在桌面 / 启动文件夹 / 开始菜单创建快捷方式。不需要单独安装程序、不用 Electron、不用构建步骤。
+
+- 🪟 **独立窗口**：自建 WebView2 窗口（与 Edge 同内核），不是浏览器标签页
+- 📌 **关闭即最小化到托盘**：只有托盘右键「退出」才会同时停止后端
+- 🚀 **无痕启动 + 就绪门控**：后端不弹控制台；等后端真正就绪才进入界面，不再闪 404；并自动阻止后端另开浏览器标签页
+- 🐛 **调试模式**：一键让后端输出显示在可见控制台里，方便排错
+- 🤝 **自动接管**：检测到外部启动的 DSH 后端时，一键重启并纳入启动器托管
+- 🧩 **零 Electron 依赖**：复用系统自带 WebView2 运行时，整包载荷仅 1.2MB（对比 Electron 方案约 200MB）
+- 🛠 **设置内控制**：设置 → 通用设置 新增「DSH 桌面外壳」行，可安装/修复、重建快捷方式、重启后端
+
+> 完整中文说明见 **[README.zh.md](README.zh.md)** ｜ English documentation below ↓
+
+---
+
 Turn the DeepSeek Harness Web UI into a **real desktop application** — from inside DSH, as a plugin.
 
 Install the plugin, and it provisions a portable launcher next to your user profile, generates
