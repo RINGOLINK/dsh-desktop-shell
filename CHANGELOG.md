@@ -3,6 +3,34 @@
 All notable changes to `dsh-desktop-shell` are recorded here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.1.1] — 2026-09-14
+
+Polish pass over the 1.1.0 settings row and documentation.
+
+### Fixed
+- **Management actions are disabled until the shell is installed.** Rebuild-shortcuts, the autostart
+  switch, removal and both restart buttons used to be clickable on a machine where nothing was
+  installed, so clicking "enable sign-in autostart" created a Startup shortcut pointing at a missing
+  exe. The host half now also answers 409 for `POST /api/dsh-desktop/autostart {enabled:true}` and for
+  `POST /api/dsh-desktop/shortcuts` in that state, so a raw API call cannot arm autostart or write
+  shortcuts for a launcher that does not exist.
+- **The autostart switch understands a leftover Startup shortcut.** An install upgraded from 1.0.x has
+  the shortcut but no preference yet; the row used to show "off" while the shortcut was still there,
+  and the button offered "enable" instead of "disable". A shortcut now counts as ON, so one click
+  removes it.
+
+### Changed
+- Documentation (README zh/en, in-row hint): 「清理安装」 / "Remove installation" also deletes the saved
+  WebView2 session (the next desktop launch signs in again), and the launcher home is re-provisioned
+  on the next host start while the plugin stays installed — uninstall the plugin (or set
+  `DSH_DESKTOP_NO_AUTOINSTALL=1`) when the removal has to stick.
+
+### Added
+- Browser-half tests: the bundle is loaded through a stub `window.__ModuleLoader__`, pinning the module
+  id, zh/en dictionary parity, the `settings.general.item` registration and the new action-gating
+  helpers. A package-identity assertion now also pins `lib/install.js` `VERSION` to
+  `package.json`'s version (it had drifted to the previous release). 40 → 49 checks.
+
 ## [1.1.0] — 2026-09-13
 
 Review follow-up: the desktop shell no longer arms sign-in autostart by default, and everything it
@@ -80,3 +108,4 @@ First release: turn the DeepSeek Harness Web UI into a native desktop applicatio
 [1.0.0]: https://github.com/RINGOLINK/dsh-desktop-shell/releases/tag/v1.0.0
 [1.0.1]: https://github.com/RINGOLINK/dsh-desktop-shell/releases/tag/v1.0.1
 [1.1.0]: https://github.com/RINGOLINK/dsh-desktop-shell/releases/tag/v1.1.0
+[1.1.1]: https://github.com/RINGOLINK/dsh-desktop-shell/releases/tag/v1.1.1
