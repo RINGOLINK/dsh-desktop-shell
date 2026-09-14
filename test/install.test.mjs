@@ -338,6 +338,31 @@ const autostartBad = fakeRes();
 await route("/api/dsh-desktop/autostart").handler(fakeReq({ method: "POST", body: { enabled: "yes" } }), autostartBad);
 check("POST /autostart: rejects a non-boolean payload", () => assert.equal(autostartBad.status, 400));
 
+// An empty home has no launcher: enabling autostart must not create a shortcut to a missing exe.
+const emptyHome = join(root, "empty-home");
+mkdirSync(emptyHome, { recursive: true });
+process.env.DSH_DESKTOP_HOME = emptyHome;
+const autostartUninstalled = fakeRes();
+await route("/api/dsh-desktop/autostart").handler(fakeReq({ method: "POST", body: { enabled: true } }), autostartUninstalled);
+check("POST /autostart: refuses to arm autostart before the shell is installed", () => {
+  assert.equal(autostartUninstalled.status, 409, JSON.stringify(autostartUninstalled.body));
+  assert.equal(existsSync(join(emptyHome, install.PREFERENCES_FILE)), false, "no preference written");
+});
+const shortcutsUninstalled = fakeRes();
+await route("/api/dsh-desktop/shortcuts").handler(fakeReq({ method: "POST", body: {} }), shortcutsUninstalled);
+check("POST /shortcuts: refuses to build shortcuts before the shell is installed", () => {
+  assert.equal(shortcutsUninstalled.status, 409, JSON.stringify(shortcutsUninstalled.body));
+  assert.equal(existsSync(join(emptyHome, "create-shortcuts.generated.ps1")), false, "no script written");
+});
+process.env.DSH_DESKTOP_HOME = home;
+const shortcutsInstalled = fakeRes();
+await route("/api/dsh-desktop/shortcuts").handler(fakeReq({ method: "POST", body: {} }), shortcutsInstalled);
+check("POST /shortcuts: rebuilds shortcuts for an installed shell", () => {
+  assert.equal(shortcutsInstalled.status, 200, JSON.stringify(shortcutsInstalled.body));
+  assert.equal(shortcutsInstalled.body.ok, true);
+  assert.ok(existsSync(join(home, "create-shortcuts.generated.ps1")), "script written");
+});
+
 const autostartOn = fakeRes();
 await route("/api/dsh-desktop/autostart").handler(fakeReq({ method: "POST", body: { enabled: true } }), autostartOn);
 check("POST /autostart: enabling stores the preference", () => {
@@ -386,13 +411,72 @@ check("SHA256SUMS.txt matches the shipped binaries byte for byte", () => {
   assert.match(exeLine, /^[0-9a-f]{64}  DSHLauncher\.exe$/, "exe hash recorded");
 });
 
+// ---------------- browser half (loader wrapper, locale parity, action gating) ----------------
+// The browser half is a `window.__ModuleLoader__.load({ id, factory })` bundle, so it is loaded
+// here through a stub loader: that catches a renamed module id, a missing locale key and the
+// "button enabled for a shell that is not installed" class of bug without a browser.
+console.log("[browser half]");
+const packageRoot = new URL("..", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
+const loaded = { id: null, exports: null };
+const requireStub = (specifier) => {
+  if (specifier === "react") return { useState: () => [null, () => {}], useEffect: () => {} };
+  if (specifier === "react/jsx-runtime") return { jsx: () => null, jsxs: () => null, Fragment: null };
+  throw new Error("unexpected require: " + specifier);
+};
+globalThis.window = { __ModuleLoader__: { load: (entry) => { loaded.id = entry.id; loaded.exports = entry.factory(requireStub); } } };
+await import(new URL("../lib/client.js", import.meta.url).href);
+const client = loaded.exports;
+const locales = [];
+const slots = [];
+client.apply({
+  effect: (fn) => fn(),
+  locale: { register: (ns, dictionaries) => { locales.push({ ns, dictionaries }); } },
+  slots: {
+    inject: (slot, register) => register(),
+    register: (config, component) => { slots.push({ config, component }); }
+  }
+});
+check("client bundle registers under the package name", () => {
+  assert.equal(loaded.id, "dsh-desktop-shell");
+});
+check("client locale dictionaries stay in lockstep", () => {
+  assert.equal(locales.length, 1);
+  const { zh, en } = locales[0].dictionaries;
+  assert.deepEqual(Object.keys(zh).sort(), Object.keys(en).sort(), "zh/en key sets must match");
+  assert.ok(Object.keys(zh).length > 20, "dictionaries look complete");
+});
+check("client registers exactly one settings.general.item row", () => {
+  assert.equal(slots.length, 1);
+  assert.equal(slots[0].config.name, "settings.general.item");
+  assert.equal(slots[0].config.order, 88);
+  assert.equal(slots[0].component, client.DesktopRow);
+});
+check("autostartEnabled: preference OR a leftover Startup shortcut counts as on", () => {
+  assert.equal(client.autostartEnabled(null), false);
+  assert.equal(client.autostartEnabled({ preferences: { autostart: false }, status: { shortcuts: { startup: false } } }), false);
+  assert.equal(client.autostartEnabled({ preferences: { autostart: true }, status: { shortcuts: { startup: false } } }), true);
+  // Upgraded from <=1.0.1: no preference file, but the shortcut is still there.
+  assert.equal(client.autostartEnabled({ preferences: { autostart: false }, status: { shortcuts: { startup: true } } }), true);
+});
+check("installEnabled / manageEnabled: management needs an installed shell", () => {
+  assert.equal(client.installEnabled(null, false), true);
+  assert.equal(client.installEnabled("install", false), false, "busy blocks");
+  assert.equal(client.installEnabled(null, true), false, "unsupported platform blocks");
+  const notInstalled = { status: { installed: false } };
+  const installed = { status: { installed: true } };
+  assert.equal(client.manageEnabled(notInstalled, null, false), false);
+  assert.equal(client.manageEnabled(null, null, false), false, "unknown status blocks management");
+  assert.equal(client.manageEnabled(installed, null, false), true);
+  assert.equal(client.manageEnabled(installed, "cleanup", false), false, "busy blocks management");
+  assert.equal(client.manageEnabled(installed, null, true), false, "unsupported platform blocks management");
+});
+
 // ---------------- package-name consistency (the invariant that really broke) ----------------
 // The harness derives a client bundle's expected module id from the PACKAGE NAME and then
 // checks `factories.has(id)` after loading the bundle; a mismatch fails the whole page with
 // "loaded without registering <pkg> via __ModuleLoader__.load". Renaming the package must
 // therefore update every name in lockstep — this section pins that down.
 console.log("[package identity]");
-const packageRoot = new URL("..", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
 const packageJson = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"));
 const patchText = readFileSync(join(packageRoot, "cordis.patch.yml"), "utf8");
 const clientText = readFileSync(join(packageRoot, "lib", "client.js"), "utf8");
@@ -406,6 +490,9 @@ check("package.json declares a name and a dsh.client half", () => {
   assert.equal(typeof packageJson.name, "string");
   assert.equal(packageJson.dsh?.client?.platform, "web");
   assert.equal(packageJson.dsh?.bundle?.patch, "./cordis.patch.yml");
+});
+check("host half reports the package version (no VERSION drift)", () => {
+  assert.equal(install.VERSION, packageJson.version, "lib/install.js VERSION must equal package.json version");
 });
 check("cordis.patch.yml insert name === package name", () => {
   assert.equal(patchName, packageJson.name);
