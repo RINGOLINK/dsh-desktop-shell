@@ -3,7 +3,7 @@
 本文是把这个插件开源发布出去的可执行清单，含 DSH 生态现有的所有分发渠道调研结论。
 
 **发布状态（2026-09-13）**：GitHub 仓库 <https://github.com/RINGOLINK/dsh-desktop-shell>（public，CI 绿）；
-npm 上 **`dsh-desktop-shell@1.0.0` 已发布**（18 文件 / 373.1 kB / shasum `ae883e8b…`，干净环境 `npm i` 复核通过）；
+npm 上 **`dsh-desktop-shell@1.0.0` 已发布**（18 文件 / 373.1 kB / shasum `ae883e8b…`，干净环境 `npm i` 复核通过），后续 1.0.1 / **1.1.0 / 1.1.1 均已按同一条 tag 流程自动发布**（Trusted Publishing，带 provenance），当前 `latest` 以 `npm view dsh-desktop-shell version` 为准；
 工作流改为 npm Trusted Publishing（OIDC），社区索引 PR 见 §1 ②。
 
 ---
@@ -141,12 +141,12 @@ git push -u origin main
 
 ## 2. 发布前检查清单
 
-- [ ] `node test/install.test.mjs` 全绿（40 项，含 `[package identity]` 身份一致性守卫、`[autostart]` 登录自启默认关闭、`[checksums]` 随包二进制哈希核对）
+- [ ] `node test/install.test.mjs` 全绿（49 项，含 `[package identity]` 身份与版本一致性守卫、`[autostart]` 登录自启默认关闭、`[checksums]` 随包二进制哈希核对、`[browser half]` 装载器 id/双语字典/按钮门控）
 - [ ] **四个名字完全一致**（改包名或换 scope 时必须同步改）：
       `package.json` 的 `name` · `cordis.patch.yml` insert 行的 `name` ·
       `lib/client.js` 里 `__ModuleLoader__.load({ id })` · 宿主 `lib/index.js` 的 `export const name`
       —— 该不变量由测试的 `[package identity]` 段强制校验（曾因漏改第 3 个而炸掉整页）
-- [ ] `npm pack --dry-run` 输出包含 `assets/`（exe、3 个 DLL、2 个 ico、源码）——本包 18 文件 / 1.2MB
+- [ ] `npm pack --dry-run` 输出包含 `assets/`（exe、3 个 DLL、2 个 ico、源码、SHA256SUMS.txt）——本包 20 文件 / ~381 kB（解包 1.2MB）
 - [ ] `package.json`：`name` 未被占用、`version` 递增、`license` MIT、`keywords` 含 `dsh-plugin`
 - [ ] README.md / README.zh.md 的安装命令与包名一致
 - [ ] `dsh.engines.dsh` 与实际依赖的 DSH 版本一致（插件管理器会用它做 412 门禁）

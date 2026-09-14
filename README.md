@@ -122,7 +122,7 @@ create-shortcuts.generated.ps1      实际执行过的快捷方式脚本
 create-startup-shortcut.generated.ps1  开启登录自启时执行的最小脚本
 logs\dsh-web.log, dsh-debug.log     后端输出（静默模式 / 调试模式）
 launcher.state.json, command.json   启动器 ↔ 插件的控制通道
-webview2-data\                      WebView2 配置目录（保存着 DSH 会话 Cookie，别删）
+webview2-data\                      WebView2 配置目录（保存着 DSH 会话 Cookie；平时别删，「清理安装」会连同它一起删，重装后需重新登录）
 ```
 
 **快捷方式**（都在用户目录里，卸载时可一键清理）：
@@ -173,7 +173,7 @@ webview2-data\                      WebView2 配置目录（保存着 DSH 会话
 - **安装 / 修复桌面外壳**：重新落地文件并按当前环境刷新配置（幂等，可随时点）；
 - **重建快捷方式**：桌面 / 调试 / 开始菜单三项一起重建（登录自启按你的开关状态决定是否一起建）；
 - **开启 / 关闭登录自启**：默认**关闭**；开启后才会在启动文件夹放 `deepseek harness.lnk`，关闭时立即删除它；
-- **清理安装**：删除本插件创建的全部快捷方式 + 整个 `%USERPROFILE%\dsh-desktop` 目录（先退出托盘里的启动器，否则会提示你退出——避免删到正在使用的文件）；
+- **清理安装**：删除本插件创建的全部快捷方式 + 整个 `%USERPROFILE%\dsh-desktop` 目录（先退出托盘里的启动器，否则会提示你退出——避免删到正在使用的文件）；会一并删除 `webview2-data` 里保存的登录会话，重装后需重新登录。注意：**插件仍启用时，宿主下次启动会重新自动安装**——想让清理保持生效，请先卸载插件（或设置 `DSH_DESKTOP_NO_AUTOINSTALL=1`）；
 - **重启后端** / **调试模式重启**：与托盘菜单等价，且**启动器在线时由启动器托管重启**，窗口不会关。
 
 ### 升级与卸载
@@ -200,7 +200,7 @@ webview2-data\                      WebView2 配置目录（保存着 DSH 会话
 - **进程行为**：启动器会**托管**一个 DSH 后端进程（用你的 node + dsh bin 启动，继承你的 `NODE_OPTIONS`），关闭窗口只是隐藏，托盘「退出」才会停后端。
 - **强制结束**：当没有启动器托管时，「重启后端」的回退路径会对**整个后端进程树**执行 `taskkill /PID <pid> /T /F`（强杀），随后按原参数重新拉起；此时正在进行的会话会被中断（与你自己重启 DSH 等价）。
 - **网络行为**：插件只注册回环路由 `/api/dsh-desktop/*`（拒绝非 127.0.0.1 请求），不发起任何对外网络请求。
-- **清理**：设置里的「清理安装」删除上面全部文件与快捷方式；不点它则什么都不会被删。
+- **清理**：设置里的「清理安装」删除上面全部文件与快捷方式（含 `webview2-data` 里的登录会话）；不点它则什么都不会被删。但**插件还装着**时，宿主下次启动会自动把这些文件重新落地——要让清理保持，先卸载插件，或设 `DSH_DESKTOP_NO_AUTOINSTALL=1`。
 
 ## 可复现构建与哈希（预编译 exe）
 
@@ -255,7 +255,9 @@ node build-checksums.mjs
 **Q7：卸载后还有残留吗？**
 插件会在 profile 里留一条依赖（按正常方式 `dsh plugin remove` 会自动清掉）；其余残留（`%USERPROFILE%\dsh-desktop`
 目录 + 桌面 ×2 / 开始菜单 / 开启过的登录自启快捷方式）用设置里的「**清理安装**」一键删除，也可手动删。
-插件卸载时**不会**自动删除文件（宿主随时可能被启动器重启，自动删会误伤正在运行的启动器）。DSH 本体（`%USERPROFILE%\.dsh`）不受影响。
+插件卸载时**不会**自动删除文件（宿主随时可能被启动器重启，自动删会误伤正在运行的启动器）。
+另外注意：只要插件还装着，宿主下次启动会在 1.5 秒后**自动重新安装**这些文件——想让清理结果保持生效，请先
+`dsh plugin --profile web remove dsh-desktop-shell`（或设 `DSH_DESKTOP_NO_AUTOINSTALL=1`）再清理。DSH 本体（`%USERPROFILE%\.dsh`）不受影响。
 
 **Q8：和我原来的 Edge PWA 快捷方式冲突吗？**
 不冲突。安装时如果发现桌面已有指向 Edge 的「DeepSeek Harness」快捷方式，会把它**改名保留**为
@@ -283,7 +285,7 @@ node build-checksums.mjs
 ## 开发者
 
 ```powershell
-node test/install.test.mjs     # 40 项：配置解析 / 安装 / 占用换入 / 快捷方式 / 登录自启 / 清理 / 重启助手 / 路由 / 校验清单 / 包名一致性
+node test/install.test.mjs     # 49 项：配置解析 / 安装 / 占用换入 / 快捷方式 / 登录自启 / 清理 / 重启助手 / 路由 / 校验清单 / 浏览器半区 / 包名与版本一致性
 npm pack --dry-run             # 确认发布包内含 assets/
 ```
 
@@ -371,7 +373,7 @@ create-shortcuts.generated.ps1      the shortcut helper that ran
 create-startup-shortcut.generated.ps1  minimal helper used when autostart is enabled
 logs\dsh-web.log, dsh-debug.log     backend output
 launcher.state.json, command.json   launcher <-> plugin control channel
-webview2-data\                      WebView2 profile (holds the DSH session cookie)
+webview2-data\                      WebView2 profile (holds the DSH session cookie; kept day to day, deleted by "Remove installation" — you sign in again after a reinstall)
 ```
 
 Shortcuts: desktop `DeepSeek Harness.lnk`, desktop `DeepSeek Harness (调试模式).lnk` and
@@ -418,7 +420,10 @@ Environment overrides: `DSH_LAUNCHER_BASE` (alternate home, used by tests),
 - **Network**: the plugin only registers loopback routes (`/api/dsh-desktop/*`, non-127.0.0.1 peers
   get 403) and makes no outbound requests.
 - **Cleanup**: "Remove installation" in the settings row deletes every file above plus the shortcuts
-  it created; nothing is deleted unless you click it.
+  it created, including the saved WebView2 session (the next desktop launch signs in again); nothing
+  is deleted unless you click it. While the plugin stays installed it re-provisions that folder on the
+  next host start, so uninstall the plugin (or set `DSH_DESKTOP_NO_AUTOINSTALL=1`) when the removal
+  has to stick.
 
 ### Reproducible build & hashes (prebuilt exe)
 
@@ -456,7 +461,7 @@ line against the packaged bytes, so the manifest cannot drift from what is publi
 ### Tests
 
 ```sh
-node test/install.test.mjs     # 40 checks: config, install, lock-swap, shortcuts, autostart, cleanup, restart, routes, checksums, package identity
+node test/install.test.mjs     # 49 checks: config, install, lock-swap, shortcuts, autostart, cleanup, restart, routes, checksums, browser half, package/version identity
 ```
 
 ### Uninstall
@@ -467,8 +472,11 @@ dsh plugin --profile web remove dsh-desktop-shell
 
 Then use **Remove installation** in 设置 → 通用设置 → DSH desktop shell (equivalent to deleting
 `%USERPROFILE%\dsh-desktop` plus the desktop ×2, start-menu and — if you enabled it — Startup
-shortcuts). Unloading the plugin never deletes anything by itself: the DSH host can be restarted by
-the launcher at any moment, so automatic deletion would risk removing files that are in use.
+shortcuts; it also drops the saved WebView2 session). Unloading the plugin never deletes anything by
+itself: the DSH host can be started by the launcher at any moment, so automatic deletion would risk
+removing files that are in use. Note that while the plugin stays installed it re-provisions the
+folder on the next host start, so uninstall it (or set `DSH_DESKTOP_NO_AUTOINSTALL=1`) when the
+removal has to stick.
 
 ### License
 
