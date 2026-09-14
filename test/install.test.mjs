@@ -79,6 +79,11 @@ check("planInstall: ships the runtime payload plus sources", () => {
   assert.equal(plan.exePath, join(home, "DSHLauncher.exe"));
   assert.equal(plan.configPath, join(home, "launcher.config.json"));
 });
+check("planInstall: ships the checksum manifest and its generator", () => {
+  const names = install.planInstall(facts, { home }).files.map((f) => f.name);
+  assert.ok(names.includes("SHA256SUMS.txt"), "checksum manifest shipped");
+  assert.ok(names.includes("build-checksums.mjs"), "manifest generator shipped");
+});
 check("installDesktop: copies the payload, writes the config, creates logs/", () => {
   const report = install.installDesktop(facts, { home, shortcuts: false, ...folders });
   assert.equal(report.ok, true, JSON.stringify(report.copied.filter((c) => c.error)));
@@ -116,34 +121,102 @@ check("copyWithLockFallback: a locked target falls back to a rename swap", () =>
 
 // ---------------- shortcuts ----------------
 console.log("[shortcuts]");
-check("renderShortcutScript: main/debug/startup/start-menu + Edge migration", () => {
+check("renderShortcutScript: main/debug/start-menu, sign-in autostart is opt-in", () => {
   const script = install.renderShortcutScript();
   assert.ok(script.includes("DeepSeek Harness.lnk"), "main shortcut");
   assert.ok(script.includes("DeepSeek Harness (调试模式).lnk"), "debug shortcut");
   assert.ok(script.includes("'--debug'"), "debug argument");
-  assert.ok(script.includes("deepseek harness.lnk"), "startup shortcut");
-  assert.ok(script.includes("$NoStartup") && script.includes("$NoStartMenu"), "opt-out switches");
+  assert.ok(script.includes("deepseek harness.lnk"), "sign-in shortcut");
+  assert.ok(script.includes("[switch]$Startup"), "autostart only via the -Startup switch");
+  assert.ok(!script.includes("$NoStartup"), "no opt-out switch: autostart is off unless asked for");
+  assert.ok(script.includes("if ($Startup) {"), "sign-in shortcut lives inside the -Startup guard");
+  assert.ok(script.includes("[switch]$NoStartMenu"), "start-menu opt-out switch");
   assert.ok(script.includes("'*msedge*'"), "Edge PWA migration guard");
   assert.ok(script.includes("Join-Path $startup"), "startup folder placement");
   // Regression: $Home is a read-only PowerShell automatic variable and must never be a parameter.
   assert.ok(!/param\([^)]*\$Home\b/.test(script), "must not declare a $Home parameter");
   assert.ok(script.includes("Join-Path $DshHome"), "uses the non-reserved parameter name");
 });
-check("createShortcuts: writes the script with a BOM and passes the opt-out switches", () => {
+check("createShortcuts: writes the script with a BOM and does NOT add autostart by default", () => {
   const calls = [];
   const runner = (command, args) => { calls.push({ command, args }); return { status: 0, stdout: "OK", stderr: "" }; };
-  const result = install.createShortcuts({ home, runner, startup: false, startMenu: true });
+  const result = install.createShortcuts({ home, runner });
   assert.equal(result.ok, true);
   const bytes = readFileSync(result.scriptPath);
   assert.deepEqual([...bytes.subarray(0, 3)], [0xef, 0xbb, 0xbf], "UTF-8 BOM for PowerShell 5.1");
   assert.equal(calls.length, 1);
-  assert.ok(calls[0].args.includes("-NoStartup"), "startup opt-out forwarded");
+  assert.ok(!calls[0].args.includes("-Startup"), "no sign-in shortcut unless asked for");
   assert.ok(!calls[0].args.includes("-NoStartMenu"), "start menu stays enabled");
+});
+check("createShortcuts: startup:true opts the sign-in shortcut in", () => {
+  const calls = [];
+  const runner = (command, args) => { calls.push({ command, args }); return { status: 0, stdout: "OK", stderr: "" }; };
+  install.createShortcuts({ home, runner, startup: true });
+  assert.ok(calls[0].args.includes("-Startup"), "sign-in shortcut requested explicitly");
 });
 check("createShortcuts: dryRun returns the script without writing", () => {
   const result = install.createShortcuts({ home, dryRun: true });
   assert.equal(result.dryRun, true);
   assert.ok(result.script.includes("DSHLauncher.exe"));
+});
+
+// ---------------- sign-in autostart (off by default) ----------------
+console.log("[autostart]");
+const startupLink = join(folders.startupDir, install.SHORTCUTS.startup);
+const okRunner = () => ({ status: 0, stdout: "OK", stderr: "" });
+check("readPreferences: autostart is off when nothing was ever configured", () => {
+  assert.equal(install.readPreferences({ home }).autostart, false);
+});
+check("setAutostart(false): deletes the sign-in shortcut and keeps the preference off", () => {
+  writeFileSync(startupLink, "stub", "utf8");
+  const result = install.setAutostart(false, { home, runner: okRunner, ...folders });
+  assert.equal(result.ok, true);
+  assert.equal(result.autostart, false);
+  assert.equal(existsSync(startupLink), false, "startup shortcut removed");
+  assert.equal(install.readPreferences({ home }).autostart, false);
+});
+check("setAutostart(true): persists the preference and runs the dedicated startup script", () => {
+  const calls = [];
+  const runner = (command, args) => { calls.push(args); return { status: 0, stdout: "OK", stderr: "" }; };
+  const result = install.setAutostart(true, { home, runner, ...folders });
+  assert.equal(result.autostart, true);
+  assert.equal(calls.length, 1);
+  assert.ok(calls[0].join(" ").includes("create-startup-shortcut.generated.ps1"), "dedicated script");
+  assert.ok(existsSync(join(home, "create-startup-shortcut.generated.ps1")), "script written");
+  assert.equal(JSON.parse(readFileSync(join(home, install.PREFERENCES_FILE), "utf8")).autostart, true);
+});
+check("installDesktop follows the stored preference instead of forcing autostart", () => {
+  const calls = [];
+  const runner = (command, args) => { calls.push(args); return { status: 0, stdout: "OK", stderr: "" }; };
+  install.setAutostart(true, { home, runner: okRunner, ...folders });
+  install.installDesktop(facts, { home, runner, ...folders });
+  assert.ok(calls.at(-1).includes("-Startup"), "preference on -> -Startup forwarded");
+  calls.length = 0;
+  install.setAutostart(false, { home, runner: okRunner, ...folders });
+  install.installDesktop(facts, { home, runner, ...folders });
+  assert.ok(!calls.at(-1).includes("-Startup"), "preference off -> no autostart shortcut");
+});
+check("cleanupInstall: removes every owned artifact but never the user's Edge shortcut", () => {
+  const staging = join(root, "cleanup-home");
+  const stagingFolders = {
+    desktopDir: join(root, "cleanup-desktop"),
+    startupDir: join(root, "cleanup-startup"),
+    programsDir: join(root, "cleanup-programs")
+  };
+  for (const dir of Object.values(stagingFolders)) mkdirSync(dir, { recursive: true });
+  install.installDesktop(facts, { home: staging, shortcuts: false });
+  const edge = join(stagingFolders.desktopDir, install.SHORTCUTS.edgeBackup);
+  writeFileSync(edge, "stub", "utf8");
+  writeFileSync(join(stagingFolders.desktopDir, install.SHORTCUTS.main), "stub", "utf8");
+  writeFileSync(join(stagingFolders.desktopDir, install.SHORTCUTS.debug), "stub", "utf8");
+  writeFileSync(join(stagingFolders.startupDir, install.SHORTCUTS.startup), "stub", "utf8");
+  writeFileSync(join(stagingFolders.programsDir, install.SHORTCUTS.startMenu), "stub", "utf8");
+  const report = install.cleanupInstall({ home: staging, ...stagingFolders });
+  assert.equal(report.ok, true, JSON.stringify(report.problems));
+  assert.equal(report.homeRemoved, true, "launcher home deleted");
+  assert.equal(report.removed.length, 4, "desktop + debug + sign-in + start-menu removed");
+  assert.equal(existsSync(staging), false, "launcher home gone");
+  assert.ok(existsSync(edge), "the user's Edge PWA shortcut survives");
 });
 
 // ---------------- self-restart helper ----------------
@@ -181,8 +254,10 @@ host.apply({
   logger: { info: () => {} }
 });
 const route = (path) => registered.find((r) => r.path === path);
-check("apply registers status/install/shortcuts/restart routes", () => {
+check("apply registers status/install/shortcuts/autostart/cleanup/restart routes", () => {
   assert.deepEqual(registered.map((r) => r.path).sort(), [
+    "/api/dsh-desktop/autostart",
+    "/api/dsh-desktop/cleanup",
     "/api/dsh-desktop/install",
     "/api/dsh-desktop/restart",
     "/api/dsh-desktop/shortcuts",
@@ -215,11 +290,13 @@ function fakeReq({ method = "GET", address = "127.0.0.1", body = null } = {}) {
 
 const statusRes = fakeRes();
 route("/api/dsh-desktop/status").handler(fakeReq(), statusRes);
-check("GET /status: installed shell + live facts", () => {
+check("GET /status: installed shell + live facts + preferences", () => {
   assert.equal(statusRes.status, 200);
   assert.equal(statusRes.body.ok, true);
   assert.equal(statusRes.body.status.installed, true);
   assert.equal(statusRes.body.facts.port !== undefined, true);
+  assert.equal(typeof statusRes.body.preferences.autostart, "boolean");
+  assert.equal(statusRes.body.launcherRunning, false);
 });
 
 const forbidden = fakeRes();
@@ -255,6 +332,58 @@ check("POST /restart: falls back to the self-restart helper", () => {
   assert.equal(restartSelf.status, 200, JSON.stringify(restartSelf.body));
   assert.equal(restartSelf.body.via, "self");
   assert.ok(existsSync(join(home, "self-restart.cmd")));
+});
+
+const autostartBad = fakeRes();
+await route("/api/dsh-desktop/autostart").handler(fakeReq({ method: "POST", body: { enabled: "yes" } }), autostartBad);
+check("POST /autostart: rejects a non-boolean payload", () => assert.equal(autostartBad.status, 400));
+
+const autostartOn = fakeRes();
+await route("/api/dsh-desktop/autostart").handler(fakeReq({ method: "POST", body: { enabled: true } }), autostartOn);
+check("POST /autostart: enabling stores the preference", () => {
+  assert.equal(autostartOn.status, 200, JSON.stringify(autostartOn.body));
+  assert.equal(autostartOn.body.autostart, true);
+  assert.equal(install.readPreferences({ home }).autostart, true);
+});
+
+const autostartOff = fakeRes();
+await route("/api/dsh-desktop/autostart").handler(fakeReq({ method: "POST", body: { enabled: false } }), autostartOff);
+check("POST /autostart: disabling clears it again", () => {
+  assert.equal(autostartOff.body.autostart, false);
+  assert.equal(install.readPreferences({ home }).autostart, false);
+});
+
+// A running launcher holds its exe open: cleanup must refuse instead of half-deleting.
+writeFileSync(join(home, "launcher.state.json"), JSON.stringify({
+  pid: process.pid, mode: "silent", backendOwned: true, backendPid: process.pid, updatedAt: new Date().toISOString()
+}), "utf8");
+const cleanupBlocked = fakeRes();
+await route("/api/dsh-desktop/cleanup").handler(fakeReq({ method: "POST", body: {} }), cleanupBlocked);
+check("POST /cleanup: refuses while the launcher is running", () => {
+  assert.equal(cleanupBlocked.status, 409, JSON.stringify(cleanupBlocked.body));
+  assert.ok(existsSync(home), "nothing was deleted");
+});
+rmSync(join(home, "launcher.state.json"), { force: true });
+const cleanupRes = fakeRes();
+await route("/api/dsh-desktop/cleanup").handler(fakeReq({ method: "POST", body: {} }), cleanupRes);
+check("POST /cleanup: removes shortcuts and the launcher home", () => {
+  assert.equal(cleanupRes.status, 200, JSON.stringify(cleanupRes.body));
+  assert.equal(cleanupRes.body.homeRemoved, true);
+  assert.equal(existsSync(home), false, "launcher home gone");
+});
+
+// ---------------- shipped binary checksums (prebuilt exe provenance) ----------------
+// The launcher exe is prebuilt; SHA256SUMS.txt pins it (and the DLLs/icons) so the published
+// package can never silently drift from the bytes the manifest describes.
+console.log("[checksums]");
+const assetDir = new URL("../assets/", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
+const checksums = await import("../assets/build-checksums.mjs");
+check("SHA256SUMS.txt matches the shipped binaries byte for byte", () => {
+  const recorded = readFileSync(join(assetDir, "SHA256SUMS.txt"), "utf8").trim().split(/\r?\n/).filter((line) => line !== "");
+  assert.deepEqual(recorded, checksums.checksumLines(assetDir), "manifest drifted from the packaged bytes");
+  assert.equal(recorded.length, checksums.CHECKSUM_ASSETS.length);
+  const exeLine = recorded.find((line) => line.endsWith("DSHLauncher.exe"));
+  assert.match(exeLine, /^[0-9a-f]{64}  DSHLauncher\.exe$/, "exe hash recorded");
 });
 
 // ---------------- package-name consistency (the invariant that really broke) ----------------
