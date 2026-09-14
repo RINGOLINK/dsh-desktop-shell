@@ -3,6 +3,41 @@
 All notable changes to `dsh-desktop-shell` are recorded here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.1.0] — 2026-09-13
+
+Review follow-up: the desktop shell no longer arms sign-in autostart by default, and everything it
+creates can be removed from the settings row.
+
+### Changed
+- **Sign-in autostart is opt-in.** Installing/repairing now creates the desktop, debug and start-menu
+  shortcuts only; the Startup-folder shortcut appears after the user enables 登录自启 /
+  "sign-in autostart" in 设置 → 通用设置 → DSH 桌面外壳. The choice is persisted in
+  `<home>\preferences.json` (`{"autostart": false}` by default; an unreadable file always resolves to
+  off, so autostart can never re-arm by accident). Turning the switch off deletes the shortcut.
+- **Removal is a first-class action.** The settings row gained 清理安装 / "Remove installation":
+  it deletes every shortcut this plugin created plus the launcher home
+  (`POST /api/dsh-desktop/cleanup`). It refuses while the launcher is running (the exe is locked) and
+  asks the user to exit from the tray menu first. Unloading the plugin still deletes nothing by
+  itself — the host can be restarted by the launcher at any moment, so automatic removal would risk
+  deleting files that are in use.
+- New loopback routes: `POST /api/dsh-desktop/autostart` (`{enabled:boolean}`) and
+  `POST /api/dsh-desktop/cleanup` (`{force?:boolean}`); `GET /api/dsh-desktop/status` now also reports
+  `preferences` and `launcherRunning`.
+- The Edge-PWA backup shortcut (`… (Edge 应用).lnk`) is explicitly excluded from every cleanup path.
+
+### Added
+- `SHA256SUMS.txt` (+ generator `assets/build-checksums.mjs`): the prebuilt launcher, the WebView2
+  DLLs and both icons are pinned by SHA-256, and the test suite re-verifies the manifest against the
+  packaged bytes so it cannot drift from the published binaries.
+- README sections 行为与安全说明 / "Behaviour & safety" (Windows-only, install path incl. the WebView2
+  DLLs, which shortcuts are created, opt-in autostart, the `taskkill /T /F` restart fallback,
+  loopback-only routes) and 可复现构建与哈希 / "Reproducible build & hashes" (rebuild command for the
+  prebuilt exe).
+- Tests: 27 → 40 checks (new `[autostart]`, cleanup, route validation and checksum sections).
+
+### Notes
+- The launcher itself (`DSHLauncher.exe` / `DSHLauncher.cs`) is unchanged in this release.
+
 ## [1.0.1] — 2026-09-13
 
 Packaging-only release: the npm pipeline now uses npm trusted publishing.
@@ -44,3 +79,4 @@ First release: turn the DeepSeek Harness Web UI into a native desktop applicatio
 
 [1.0.0]: https://github.com/RINGOLINK/dsh-desktop-shell/releases/tag/v1.0.0
 [1.0.1]: https://github.com/RINGOLINK/dsh-desktop-shell/releases/tag/v1.0.1
+[1.1.0]: https://github.com/RINGOLINK/dsh-desktop-shell/releases/tag/v1.1.0
