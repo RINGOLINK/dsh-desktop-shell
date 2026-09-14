@@ -87,22 +87,28 @@ OIDC 发布时 npm 自动生成 provenance 证明。
 ```json
 {
   "id": "dsh-desktop-shell",
-  "name": "桌面外壳",
-  "nameEn": "Desktop Shell",
+  "name": "DSH 桌面外壳",
+  "nameEn": "DSH Desktop Shell",
   "author": "RINGOLINK",
-  "description": "把 DSH WebUI 变成真正的桌面应用：WebView2 独立窗口 + 托盘常驻 + 无痕启动 + 就绪门控 + 调试模式，安装即自动落地启动器与桌面/开机快捷方式；零 Electron 依赖，载荷仅 1.2MB。",
-  "descriptionEn": "Turn the DSH Web UI into a real desktop app: native WebView2 window, tray residency, silent backend start, readiness gating, debug console; installs the launcher and desktop/startup shortcuts automatically. No Electron runtime — 1.2 MB payload.",
+  "description": "仅 Windows。把 DSH WebUI 变成本机桌面应用：预编译启动器（WebView2 独立窗口 + 托盘常驻，关闭窗口最小化到托盘，托盘右键才退出）。安装会在 %USERPROFILE%\\dsh-desktop 写入 DSHLauncher.exe 与 WebView2 DLL，并创建桌面/开始菜单快捷方式；登录自启默认关闭，需要时在设置里开启。启动器未托管后端时，「重启后端」会对整个后端进程树执行 taskkill /T /F 强杀再按原参数拉起（会中断进行中的会话）。设置里提供安装/修复、重建快捷方式、登录自启开关、清理安装（删除上述文件与快捷方式）与重启。",
+  "descriptionEn": "Windows only. Turns the DSH Web UI into a desktop app: a prebuilt launcher with its own WebView2 window and tray icon (closing the window hides it; only the tray menu exits and stops the backend). Installing writes DSHLauncher.exe and the WebView2 DLLs to %USERPROFILE%\\dsh-desktop and creates desktop/start-menu shortcuts; sign-in autostart is off by default and can be enabled in the settings row. When no launcher manages the backend, restarting it force-kills the whole backend process tree (taskkill /T /F) and relaunches it with the original arguments, interrupting in-flight sessions. The settings row offers install/repair, shortcut rebuild, the autostart switch, removal (deletes those files and shortcuts) and restart.",
   "repo": "https://github.com/RINGOLINK/dsh-desktop-shell",
   "npm": "dsh-desktop-shell",
-  "category": "utility"
+  "category": "tools",
+  "subcategory": "dev"
 }
 ```
 
-`subcategory` 只在 `category` 已填且属于该 category 的合法枚举时才被接受（校验在仓库 `scripts/community-index`）：
-`utility` 只接受 `cleanup / stats / notify / net`，**没有 `desktop`**，所以条目先只填 `category`
-（填 `desktop` 会被校验拒绝，且下游读取器用同一份枚举）；需要 desktop 子类应在 PR 说明里请维护者新增枚举。
+**描述必须写全行为**（维护者评审要求）：商店卡片是用户安装前唯一能看到这些的地方，必须写明「仅 Windows /
+安装到 `%USERPROFILE%\dsh-desktop`（含 WebView2 DLL）/ 创建哪些快捷方式 / 登录自启默认关闭 / 「重启后端」
+的回退路径会 `taskkill /T /F` 强杀整个后端进程树再按原参数拉起」。上面这段是按该要求定稿的，行为变更时同步更新。
 
-**分类现状**：现有 `community.json`（58 条）的 `category` 枚举是
+`subcategory` 只在 `category` 已填且属于该 category 的合法枚举时才被接受（校验在仓库 `scripts/community-index`）；
+另外仓库的 `scripts/market-layout.test.mjs`「plugins.json 契约」要求**凡带 category 的条目必须带非空 subcategory**
+（只有未分类的 `other` 桶不带），所以两条都要填。现有枚举里没有 desktop / launcher 类，本条目落在最接近的
+`tools` / `dev`（该桶现有 `dsh-plugin-hub`、`dsh-backup` 等环境级工具）；若维护者新增 desktop 子类可迁移。
+
+**分类现状**：现有 `community.json`（61 条）的 `category` 枚举是
 `tools / ui / knowledge / integration / utility / security / agent`，其中
 `ui: terminal/chat/render/panel`、`agent: preset`、`tools: context/browser/api/model/dev`、
 `knowledge: memory/reading/qa`、`integration: remote/bridge/sync/external-ai`、
@@ -135,7 +141,7 @@ git push -u origin main
 
 ## 2. 发布前检查清单
 
-- [ ] `node test/install.test.mjs` 全绿（27 项，含 `[package identity]` 身份一致性守卫）
+- [ ] `node test/install.test.mjs` 全绿（40 项，含 `[package identity]` 身份一致性守卫、`[autostart]` 登录自启默认关闭、`[checksums]` 随包二进制哈希核对）
 - [ ] **四个名字完全一致**（改包名或换 scope 时必须同步改）：
       `package.json` 的 `name` · `cordis.patch.yml` insert 行的 `name` ·
       `lib/client.js` 里 `__ModuleLoader__.load({ id })` · 宿主 `lib/index.js` 的 `export const name`

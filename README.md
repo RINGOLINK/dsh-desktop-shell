@@ -3,7 +3,7 @@
 **把 DeepSeek Harness 的 WebUI 变成真正的桌面应用** —— 以 DSH 插件的形式，装完即用。
 
 平时 DSH 的界面是浏览器里的一个标签页；装上这个插件后，它会自动在你的用户目录落地一个**便携启动器**
-（已预编译，不需要你本机编译）、按当前运行环境生成配置，并在桌面 / 启动文件夹 / 开始菜单创建快捷方式。
+（已预编译，不需要你本机编译）、按当前运行环境生成配置，并在桌面 / 开始菜单创建快捷方式（登录自启默认关闭，需要时在设置里一键开启）。
 双击桌面图标即可像普通程序一样启动，关掉窗口就最小化到托盘，托盘右键才真正退出。
 
 > 本文档为完整中文说明（安装步骤、常见问题、原理）。英文文档在页面底部的折叠区。
@@ -17,6 +17,8 @@
 - [安装（三步）](#安装三步)
 - [安装后自动创建了什么](#安装后自动创建了什么)
 - [日常使用](#日常使用)
+- [行为与安全说明](#行为与安全说明)
+- [可复现构建与哈希（预编译 exe）](#可复现构建与哈希预编译-exe)
 - [常见问题 FAQ](#常见问题-faq)
 - [工作原理](#工作原理)
 - [开发者](#开发者)
@@ -36,10 +38,12 @@
 | 🐛 **调试模式** | 另一个快捷方式以**可见的 PowerShell 控制台**启动后端（输出同时写入日志），方便看报错 |
 | 🤝 **自动接管** | 若检测到外部启动的 DSH 后端，一次点击即可重启并纳入启动器托管 |
 | 🛡 **看门狗** | 后端意外退出会自动拉起；连续失败会退避，避免重启风暴 |
-| 🛠 **设置内控制** | 设置 → 通用设置 新增「**DSH 桌面外壳**」行：安装/修复、重建快捷方式、重启后端、调试模式重启 |
-| 🧩 **零 Electron 依赖** | 复用系统自带 WebView2 运行时，npm 包仅 ~367KB、解包 1.2MB（Electron 方案约 200MB） |
+| 🛠 **设置内控制** | 设置 → 通用设置 新增「**DSH 桌面外壳**」行：安装/修复、重建快捷方式、登录自启开关、清理安装、重启后端、调试模式重启 |
+| 🔒 **登录自启默认关闭** | 不会偷偷开机自启：只有你在设置里点击「开启登录自启」才会写入启动文件夹，随时可关 |
+| 🧹 **一键清理** | 「清理安装」删除本插件创建的全部快捷方式与 `%USERPROFILE%\dsh-desktop` 目录（启动器运行时先提示你退出，避免误删） |
+| 🧩 **零 Electron 依赖** | 复用系统自带 WebView2 运行时，npm 包仅 ~370KB、解包 1.2MB（Electron 方案约 200MB） |
 | 📦 **免编译** | 随包分发已编译的 90KB `.exe`（.NET Framework 4.8 winexe），用户机器无需 VS/编译工具链 |
-| 🔍 **源码随包** | `assets/DSHLauncher.cs`、`assets/build-icons.mjs` 一并提供，可审计、可自行重编译 |
+| 🔍 **源码随包** | `assets/DSHLauncher.cs`、`assets/build-icons.mjs` 一并提供，可审计、可自行重编译；`SHA256SUMS.txt` 固定随包二进制的哈希并由测试核对 |
 
 ## 环境要求
 
@@ -88,10 +92,10 @@ dsh plugin --profile web add link:C:\path\to\dsh-desktop-shell
 
 浏览器按 **Ctrl+F5** 强刷，然后检查四项：
 
-1. **设置 → 通用设置** 里出现「**DSH 桌面外壳**」一行（显示是否已安装、快捷方式状态、是否由启动器托管）；
-2. **桌面**出现两个快捷方式：「DeepSeek Harness」「DeepSeek Harness (调试模式)」；
-3. **启动文件夹**出现 `deepseek harness.lnk`（登录后自动启动），**开始菜单**出现「DeepSeek Harness」；
-4. 安装目录 `%USERPROFILE%\dsh-desktop` 存在，里面有 `DSHLauncher.exe`。
+1. **设置 → 通用设置** 里出现「**DSH 桌面外壳**」一行（显示是否已安装、快捷方式状态、登录自启状态、是否由启动器托管）；
+2. **桌面**出现两个快捷方式：「DeepSeek Harness」「DeepSeek Harness (调试模式)」，**开始菜单**出现「DeepSeek Harness」；
+3. 登录自启默认**关闭**（启动文件夹里没有 `deepseek harness.lnk`）——需要开机自启就在这一行点「开启登录自启」；
+4. 安装目录 `%USERPROFILE%\dsh-desktop` 存在，里面有 `DSHLauncher.exe` 与 `SHA256SUMS.txt`。
 
 还可以用接口自检（在本机浏览器或 PowerShell 里）：
 
@@ -111,12 +115,20 @@ Microsoft.Web.WebView2.*.dll        WebView2 托管 SDK
 WebView2Loader.dll                  WebView2 原生加载器
 DSHLauncher.ico / -debug.ico        黑白鲸鱼图标（主入口 / 调试入口）
 DSHLauncher.cs, build-icons.mjs     上面程序的完整源码（可审计、可重编译）
+SHA256SUMS.txt                      随包二进制（exe / DLL / ico）的 SHA-256 校验清单
 launcher.config.json                按你当前环境生成（见下）
+preferences.json                    你的选择（目前只有「登录自启」开关，默认关闭）
 create-shortcuts.generated.ps1      实际执行过的快捷方式脚本
+create-startup-shortcut.generated.ps1  开启登录自启时执行的最小脚本
 logs\dsh-web.log, dsh-debug.log     后端输出（静默模式 / 调试模式）
 launcher.state.json, command.json   启动器 ↔ 插件的控制通道
 webview2-data\                      WebView2 配置目录（保存着 DSH 会话 Cookie，别删）
 ```
+
+**快捷方式**（都在用户目录里，卸载时可一键清理）：
+桌面「DeepSeek Harness.lnk」、桌面「DeepSeek Harness (调试模式).lnk」、开始菜单「DeepSeek Harness.lnk」；
+**登录自启（启动文件夹里的 `deepseek harness.lnk`）默认不创建**，需要你在设置里显式开启。
+如果桌面上原本有自己建的 Edge PWA 快捷方式，它会被改名保留为「DeepSeek Harness (Edge 应用).lnk」，插件永远不会删除它。
 
 `launcher.config.json` 字段说明：
 
@@ -159,7 +171,9 @@ webview2-data\                      WebView2 配置目录（保存着 DSH 会话
 设置 → 通用设置 →「DSH 桌面外壳」这一行提供：
 
 - **安装 / 修复桌面外壳**：重新落地文件并按当前环境刷新配置（幂等，可随时点）；
-- **重建快捷方式**：桌面 / 启动 / 开始菜单四项一起重建；
+- **重建快捷方式**：桌面 / 调试 / 开始菜单三项一起重建（登录自启按你的开关状态决定是否一起建）；
+- **开启 / 关闭登录自启**：默认**关闭**；开启后才会在启动文件夹放 `deepseek harness.lnk`，关闭时立即删除它；
+- **清理安装**：删除本插件创建的全部快捷方式 + 整个 `%USERPROFILE%\dsh-desktop` 目录（先退出托盘里的启动器，否则会提示你退出——避免删到正在使用的文件）；
 - **重启后端** / **调试模式重启**：与托盘菜单等价，且**启动器在线时由启动器托管重启**，窗口不会关。
 
 ### 升级与卸载
@@ -172,8 +186,43 @@ webview2-data\                      WebView2 配置目录（保存着 DSH 会话
   dsh plugin --profile web remove dsh-desktop-shell
   ```
 
-  然后删除 `%USERPROFILE%\dsh-desktop` 目录，以及四个快捷方式（桌面 ×2、启动文件夹、开始菜单）。
-  安装器**从不改动 DSH 本体**。
+  然后到 设置 → 通用设置 →「DSH 桌面外壳」点 **清理安装**（等价于手动删除 `%USERPROFILE%\dsh-desktop`
+  目录与桌面 ×2、开始菜单快捷方式，以及开启过的登录自启快捷方式）。安装器**从不改动 DSH 本体**。
+  插件卸载时**不会**自动删除你的文件——删除动作只在你点「清理安装」时发生（这是刻意的：宿主进程随时可能被启动器重启，自动删文件会误伤正在运行的启动器）。
+
+## 行为与安全说明
+
+收录前请先看这一节，它是这个插件对系统做的全部事情：
+
+- **仅 Windows**：启动器是预编译的 x64 `.NET Framework 4.8` 可执行文件，依赖系统自带的 WebView2 Runtime；其他平台不会自动安装（宿主半区会跳过）。
+- **写入位置**：只写 `%USERPROFILE%\dsh-desktop`（可用 `DSH_DESKTOP_HOME` 改），内含 `DSHLauncher.exe` 与 **WebView2 SDK 的 DLL**（`Microsoft.Web.WebView2.*.dll`、`WebView2Loader.dll`）、图标、启动器源码；不会写入 DSH 安装目录，也不改 DSH 本体。
+- **快捷方式**：桌面两个（主入口 + 调试模式）、开始菜单一个；**登录自启默认关闭**，只有你在设置里开启后才会写入启动文件夹。已存在的 Edge PWA 快捷方式会被改名保留，绝不删除。
+- **进程行为**：启动器会**托管**一个 DSH 后端进程（用你的 node + dsh bin 启动，继承你的 `NODE_OPTIONS`），关闭窗口只是隐藏，托盘「退出」才会停后端。
+- **强制结束**：当没有启动器托管时，「重启后端」的回退路径会对**整个后端进程树**执行 `taskkill /PID <pid> /T /F`（强杀），随后按原参数重新拉起；此时正在进行的会话会被中断（与你自己重启 DSH 等价）。
+- **网络行为**：插件只注册回环路由 `/api/dsh-desktop/*`（拒绝非 127.0.0.1 请求），不发起任何对外网络请求。
+- **清理**：设置里的「清理安装」删除上面全部文件与快捷方式；不点它则什么都不会被删。
+
+## 可复现构建与哈希（预编译 exe）
+
+`DSHLauncher.exe` 是预编译产物，随包提供完整源码 `assets/DSHLauncher.cs`，并用 SHA-256 清单固定二进制：
+
+```powershell
+# 校验随包二进制（与其他文件同一目录）
+Get-Content .\SHA256SUMS.txt
+Get-FileHash .\DSHLauncher.exe -Algorithm SHA256
+
+# 从源码重建（Windows 自带 .NET Framework 编译器，无需 VS）
+& "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /target:winexe `
+  /out:DSHLauncher.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll `
+  /r:Microsoft.Web.WebView2.WinForms.dll /r:Microsoft.Web.WebView2.Core.dll `
+  /r:WebView2Loader.dll DSHLauncher.cs
+
+# 重新生成校验清单
+node build-checksums.mjs
+```
+
+`SHA256SUMS.txt` 由 `assets/build-checksums.mjs` 生成，测试套件会逐条核对清单与随包文件的实际哈希，
+所以清单不可能与实际发布的二进制脱节。
 
 ## 常见问题 FAQ
 
@@ -204,8 +253,9 @@ webview2-data\                      WebView2 配置目录（保存着 DSH 会话
 在运行。这是设计如此：X = 最小化到托盘，后端与托盘图标都还在。要彻底停止，用托盘右键「退出」。
 
 **Q7：卸载后还有残留吗？**
-插件会在 profile 里留一条依赖（按正常方式 `dsh plugin remove` 会自动清掉）；其余就是 `%USERPROFILE%\dsh-desktop`
-目录与四个快捷方式，手动删除即可。DSH 本体（`%USERPROFILE%\.dsh`）不受影响。
+插件会在 profile 里留一条依赖（按正常方式 `dsh plugin remove` 会自动清掉）；其余残留（`%USERPROFILE%\dsh-desktop`
+目录 + 桌面 ×2 / 开始菜单 / 开启过的登录自启快捷方式）用设置里的「**清理安装**」一键删除，也可手动删。
+插件卸载时**不会**自动删除文件（宿主随时可能被启动器重启，自动删会误伤正在运行的启动器）。DSH 本体（`%USERPROFILE%\.dsh`）不受影响。
 
 **Q8：和我原来的 Edge PWA 快捷方式冲突吗？**
 不冲突。安装时如果发现桌面已有指向 Edge 的「DeepSeek Harness」快捷方式，会把它**改名保留**为
@@ -233,7 +283,7 @@ webview2-data\                      WebView2 配置目录（保存着 DSH 会话
 ## 开发者
 
 ```powershell
-node test/install.test.mjs     # 27 项：配置解析 / 安装 / 占用换入 / 快捷方式 / 重启助手 / 路由 / 包名一致性
+node test/install.test.mjs     # 40 项：配置解析 / 安装 / 占用换入 / 快捷方式 / 登录自启 / 清理 / 重启助手 / 路由 / 校验清单 / 包名一致性
 npm pack --dry-run             # 确认发布包内含 assets/
 ```
 
@@ -314,12 +364,21 @@ Microsoft.Web.WebView2.*.dll        WebView2 managed SDK
 WebView2Loader.dll                  WebView2 native loader
 DSHLauncher.ico / -debug.ico        the whale icons (black & white)
 DSHLauncher.cs, build-icons.mjs     full source of the above, for transparency/rebuilds
+SHA256SUMS.txt                      SHA-256 manifest of the shipped binaries
 launcher.config.json                generated from the live host (see below)
+preferences.json                    your choices (today: the sign-in autostart switch)
 create-shortcuts.generated.ps1      the shortcut helper that ran
+create-startup-shortcut.generated.ps1  minimal helper used when autostart is enabled
 logs\dsh-web.log, dsh-debug.log     backend output
 launcher.state.json, command.json   launcher <-> plugin control channel
 webview2-data\                      WebView2 profile (holds the DSH session cookie)
 ```
+
+Shortcuts: desktop `DeepSeek Harness.lnk`, desktop `DeepSeek Harness (调试模式).lnk` and
+start-menu `DeepSeek Harness.lnk`. **Sign-in autostart is off by default** and only creates
+`deepseek harness.lnk` in the Startup folder when you enable it in the settings row. A
+pre-existing Edge PWA shortcut is renamed to `DeepSeek Harness (Edge 应用).lnk` and is never
+deleted by this plugin.
 
 `launcher.config.json`:
 
@@ -341,6 +400,49 @@ Environment overrides: `DSH_LAUNCHER_BASE` (alternate home, used by tests),
 `DSH_LAUNCHER_NO_MUTEX=1` (allow a second instance), `DSH_DESKTOP_HOME`,
 `DSH_DESKTOP_NO_AUTOINSTALL=1`.
 
+### Behaviour & safety (what this plugin does to your machine)
+
+- **Windows only**: the launcher is a prebuilt x64 .NET Framework 4.8 executable and needs the
+  system WebView2 Runtime; on other platforms the host half skips auto-install entirely.
+- **Writes**: only `%USERPROFILE%\dsh-desktop` (override with `DSH_DESKTOP_HOME`) — the launcher exe,
+  the **WebView2 SDK DLLs** (`Microsoft.Web.WebView2.*.dll`, `WebView2Loader.dll`), the icons, the
+  source and a `SHA256SUMS.txt` manifest. Nothing is written into the DSH installation.
+- **Shortcuts**: two on the desktop (main + debug) and one in the start menu. **Sign-in autostart is
+  off by default**; it writes into the Startup folder only after you enable it in the settings row.
+  An Edge PWA shortcut you created yourself is renamed and preserved, never deleted.
+- **Processes**: the launcher owns one DSH backend process (your node + dsh bin, inheriting your
+  `NODE_OPTIONS`). Closing the window hides it; only the tray "exit" stops the backend.
+- **Force kill**: when no launcher is managing the backend, the restart fallback runs
+  `taskkill /PID <pid> /T /F` on the **whole backend process tree** and relaunches it with the
+  original arguments — in-flight sessions are interrupted, exactly like restarting DSH yourself.
+- **Network**: the plugin only registers loopback routes (`/api/dsh-desktop/*`, non-127.0.0.1 peers
+  get 403) and makes no outbound requests.
+- **Cleanup**: "Remove installation" in the settings row deletes every file above plus the shortcuts
+  it created; nothing is deleted unless you click it.
+
+### Reproducible build & hashes (prebuilt exe)
+
+`DSHLauncher.exe` ships prebuilt together with its complete source (`assets/DSHLauncher.cs`) and a
+SHA-256 manifest:
+
+```powershell
+# verify the shipped binaries
+Get-Content .\SHA256SUMS.txt
+Get-FileHash .\DSHLauncher.exe -Algorithm SHA256
+
+# rebuild from source (the .NET Framework compiler shipped with Windows; no Visual Studio needed)
+& "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /target:winexe `
+  /out:DSHLauncher.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll `
+  /r:Microsoft.Web.WebView2.WinForms.dll /r:Microsoft.Web.WebView2.Core.dll `
+  /r:WebView2Loader.dll DSHLauncher.cs
+
+# regenerate the manifest
+node build-checksums.mjs
+```
+
+`SHA256SUMS.txt` is produced by `assets/build-checksums.mjs`, and the test suite re-verifies every
+line against the packaged bytes, so the manifest cannot drift from what is published.
+
 ### How it works (the two non-obvious parts)
 
 1. **Authentication.** `dsh web` fences the shell behind a per-process token; it prints
@@ -354,7 +456,7 @@ Environment overrides: `DSH_LAUNCHER_BASE` (alternate home, used by tests),
 ### Tests
 
 ```sh
-node test/install.test.mjs     # 27 checks: config, install, lock-swap, shortcuts, restart, routes, package identity
+node test/install.test.mjs     # 40 checks: config, install, lock-swap, shortcuts, autostart, cleanup, restart, routes, checksums, package identity
 ```
 
 ### Uninstall
@@ -363,8 +465,10 @@ node test/install.test.mjs     # 27 checks: config, install, lock-swap, shortcut
 dsh plugin --profile web remove dsh-desktop-shell
 ```
 
-Then delete `%USERPROFILE%\dsh-desktop` and the four shortcuts (desktop ×2, Startup, start menu).
-The installer never touches the DSH installation itself.
+Then use **Remove installation** in 设置 → 通用设置 → DSH desktop shell (equivalent to deleting
+`%USERPROFILE%\dsh-desktop` plus the desktop ×2, start-menu and — if you enabled it — Startup
+shortcuts). Unloading the plugin never deletes anything by itself: the DSH host can be restarted by
+the launcher at any moment, so automatic deletion would risk removing files that are in use.
 
 ### License
 
