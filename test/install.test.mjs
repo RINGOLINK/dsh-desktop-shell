@@ -470,6 +470,22 @@ check("installEnabled / manageEnabled: management needs an installed shell", () 
   assert.equal(client.manageEnabled(installed, "cleanup", false), false, "busy blocks management");
   assert.equal(client.manageEnabled(installed, null, true), false, "unsupported platform blocks management");
 });
+// Regression: the row once pinned its six-button control group with `flexShrink: 0`. The group kept
+// its max-content width, overflowed the settings column (clipping the last button) and squeezed the
+// label column down to one character per line.
+check("row layout lets the button group wrap instead of squeezing the label column", () => {
+  const layout = client.LAYOUT;
+  assert.equal(layout.row.flexWrap, "wrap", "the row wraps so the buttons can drop below the text");
+  assert.equal(layout.label.minWidth, 0);
+  assert.ok(/^1 1 /.test(String(layout.label.flex)), "the label column keeps a real flex basis");
+  assert.equal(layout.control.flexWrap, "wrap");
+  assert.equal(layout.control.flexShrink, undefined, "the control group must not be pinned at max-content");
+  assert.ok(/^0 1 /.test(String(layout.control.flex)), "the control group shrinks before it overflows");
+  const button = client.buttonStyle(true);
+  assert.equal(button.whiteSpace, "nowrap", "a button never breaks inside its own label");
+  assert.equal(button.flex, "0 0 auto");
+  assert.equal(client.buttonStyle(false).opacity, 0.6, "disabled buttons render dimmed");
+});
 
 // ---------------- package-name consistency (the invariant that really broke) ----------------
 // The harness derives a client bundle's expected module id from the PACKAGE NAME and then

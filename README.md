@@ -285,7 +285,7 @@ node build-checksums.mjs
 ## 开发者
 
 ```powershell
-node test/install.test.mjs     # 49 项：配置解析 / 安装 / 占用换入 / 快捷方式 / 登录自启 / 清理 / 重启助手 / 路由 / 校验清单 / 浏览器半区 / 包名与版本一致性
+node test/install.test.mjs     # 50 项：配置解析 / 安装 / 占用换入 / 快捷方式 / 登录自启 / 清理 / 重启助手 / 路由 / 校验清单 / 浏览器半区与行布局 / 包名与版本一致性
 npm pack --dry-run             # 确认发布包内含 assets/
 ```
 
@@ -461,7 +461,7 @@ line against the packaged bytes, so the manifest cannot drift from what is publi
 ### Tests
 
 ```sh
-node test/install.test.mjs     # 49 checks: config, install, lock-swap, shortcuts, autostart, cleanup, restart, routes, checksums, browser half, package/version identity
+node test/install.test.mjs     # 50 checks: config, install, lock-swap, shortcuts, autostart, cleanup, restart, routes, checksums, browser half + row layout, package/version identity
 ```
 
 ### Uninstall

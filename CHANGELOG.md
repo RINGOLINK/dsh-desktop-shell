@@ -3,6 +3,27 @@
 All notable changes to `dsh-desktop-shell` are recorded here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.1.2] — 2026-09-15
+
+### Fixed
+- **Settings row layout inside the narrow settings column.** The six-button control group was pinned
+  with `flexShrink: 0`, so it kept its max-content width: it overflowed the column (the last button
+  rendered outside the panel) and squeezed the label column to zero width, printing the title and the
+  description one character per line. The row now wraps (`flex-wrap: wrap`, the label column keeps a
+  `1 1 260px` basis, the control group is `0 1 auto` and wraps its own buttons), buttons never break
+  inside their own label (`white-space: nowrap`), and the destructive action sits last.
+
+### Changed
+- The status block renders one fact per line instead of a single `·`-joined sentence, and the long
+  behaviour notes are collapsed behind a 「行为说明（点击展开）」 / "Behaviour notes (click to expand)"
+  disclosure so the row stays compact.
+- Shorter button labels (「安装 / 修复」「调试重启」 / "Install / repair", "Debug restart") keep the
+  group to two rows at the default settings width.
+
+### Added
+- A layout regression test pins the row contract (`LAYOUT`), which is exactly what failed here: the
+  row wraps, the control group shrinks, buttons stay `nowrap`. 49 → 50 checks.
+
 ## [1.1.1] — 2026-09-14
 
 Polish pass over the 1.1.0 settings row and documentation.
@@ -109,3 +130,4 @@ First release: turn the DeepSeek Harness Web UI into a native desktop applicatio
 [1.0.1]: https://github.com/RINGOLINK/dsh-desktop-shell/releases/tag/v1.0.1
 [1.1.0]: https://github.com/RINGOLINK/dsh-desktop-shell/releases/tag/v1.1.0
 [1.1.1]: https://github.com/RINGOLINK/dsh-desktop-shell/releases/tag/v1.1.1
+[1.1.2]: https://github.com/RINGOLINK/dsh-desktop-shell/releases/tag/v1.1.2
