@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow 
 ## [1.1.3] — 2026-09-15
 
 ### Fixed
+- **The debug shortcut could not be created at all on a non-CJK Windows.** `WScript.Shell` marshals
+  the link path through the ANSI code page, so `DeepSeek Harness (调试模式).lnk` reached COM as
+  `DeepSeek Harness (????).lnk` and `Save()` threw `FileNotFoundException` (the whole script aborted,
+  which also skipped the Start Menu link). The link is now `DeepSeek Harness (Debug).lnk`, and an
+  existing pre-1.1.3 Chinese-named link is migrated away via the filesystem API.
 - **The Start Menu shortcut was silently skipped whenever sign-in autostart was enabled.** PowerShell
   variable names are case-insensitive, so the generated script's `$startup = [Environment]::GetFolderPath('Startup')`
   assigned a string to the script's own `[switch]$Startup` parameter and aborted the whole script —

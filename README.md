@@ -93,7 +93,7 @@ dsh plugin --profile web add link:C:\path\to\dsh-desktop-shell
 浏览器按 **Ctrl+F5** 强刷，然后检查四项：
 
 1. **设置 → 通用设置** 里出现「**DSH 桌面外壳**」一行（显示是否已安装、快捷方式状态、登录自启状态、是否由启动器托管）；
-2. **桌面**出现两个快捷方式：「DeepSeek Harness」「DeepSeek Harness (调试模式)」，**开始菜单**出现「DeepSeek Harness」；
+2. **桌面**出现两个快捷方式：「DeepSeek Harness」「DeepSeek Harness (Debug)」，**开始菜单**出现「DeepSeek Harness」；
 3. 登录自启默认**关闭**（启动文件夹里没有 `deepseek harness.lnk`）——需要开机自启就在这一行点「开启登录自启」；
 4. 安装目录 `%USERPROFILE%\dsh-desktop` 存在，里面有 `DSHLauncher.exe` 与 `SHA256SUMS.txt`。
 
@@ -126,7 +126,7 @@ webview2-data\                      WebView2 配置目录（保存着 DSH 会话
 ```
 
 **快捷方式**（都在用户目录里，卸载时可一键清理）：
-桌面「DeepSeek Harness.lnk」、桌面「DeepSeek Harness (调试模式).lnk」、开始菜单「DeepSeek Harness.lnk」；
+桌面「DeepSeek Harness.lnk」、桌面「DeepSeek Harness (Debug).lnk」、开始菜单「DeepSeek Harness.lnk」；
 **登录自启（启动文件夹里的 `deepseek harness.lnk`）默认不创建**，需要你在设置里显式开启。
 如果桌面上原本有自己建的 Edge PWA 快捷方式，它会被改名保留为「DeepSeek Harness (Edge 应用).lnk」，插件永远不会删除它。
 
@@ -376,7 +376,7 @@ launcher.state.json, command.json   launcher <-> plugin control channel
 webview2-data\                      WebView2 profile (holds the DSH session cookie; kept day to day, deleted by "Remove installation" — you sign in again after a reinstall)
 ```
 
-Shortcuts: desktop `DeepSeek Harness.lnk`, desktop `DeepSeek Harness (调试模式).lnk` and
+Shortcuts: desktop `DeepSeek Harness.lnk`, desktop `DeepSeek Harness (Debug).lnk` and
 start-menu `DeepSeek Harness.lnk`. **Sign-in autostart is off by default** and only creates
 `deepseek harness.lnk` in the Startup folder when you enable it in the settings row. A
 pre-existing Edge PWA shortcut is renamed to `DeepSeek Harness (Edge 应用).lnk` and is never

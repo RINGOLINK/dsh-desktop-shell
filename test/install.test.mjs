@@ -141,8 +141,10 @@ console.log("[shortcuts]");
 check("renderShortcutScript: main/debug/start-menu, sign-in autostart is opt-in", () => {
   const script = install.renderShortcutScript();
   assert.ok(script.includes("DeepSeek Harness.lnk"), "main shortcut");
-  assert.ok(script.includes("DeepSeek Harness (调试模式).lnk"), "debug shortcut");
+  assert.ok(script.includes(install.SHORTCUTS.debug), "debug shortcut (ASCII name: locale-safe)");
   assert.ok(script.includes("'--debug'"), "debug argument");
+  assert.ok(script.includes(install.SHORTCUTS.legacyDebug), "migrates the pre-1.1.3 Chinese-named debug link");
+  assert.match(script, /Remove-Item -LiteralPath \$legacyDebug/, "removes the legacy link via the filesystem API");
   assert.ok(script.includes("deepseek harness.lnk"), "sign-in shortcut");
   assert.ok(script.includes("[switch]$Startup"), "autostart only via the -Startup switch");
   assert.ok(!script.includes("$NoStartup"), "no opt-out switch: autostart is off unless asked for");
