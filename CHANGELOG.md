@@ -3,6 +3,32 @@
 All notable changes to `dsh-desktop-shell` are recorded here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.1.3] — 2026-09-15
+
+### Fixed
+- **The Start Menu shortcut was silently skipped whenever sign-in autostart was enabled.** PowerShell
+  variable names are case-insensitive, so the generated script's `$startup = [Environment]::GetFolderPath('Startup')`
+  assigned a string to the script's own `[switch]$Startup` parameter and aborted the whole script —
+  the two desktop links had already been created, the Start Menu link never was. The body variable is
+  now `$startupDir`, and the script exports `-DesktopPath/-StartupPath/-ProgramsPath` overrides.
+- **Shortcut deletion can no longer touch links this installation did not create.** Every launcher
+  home now records the absolute paths it created in `shortcuts.json`; `removeShortcuts` /
+  `removeInstall` delete exactly those paths (installs that predate the manifest fall back to the
+  default names). This closes the hole that let a test run — which resolved the shell folders from the
+  ambient profile — delete the real desktop and start-menu links.
+- **Destructive helpers honour the test seam**: with `DSH_DESKTOP_TEST=1` a removal is reported
+  (`wouldRemove`) instead of performed unless the caller passes `dryRun: false`.
+- The manifest records the Chinese-named debug link again: it is computed from the requested folders
+  and confirmed on disk instead of being parsed out of PowerShell's stdout, which PowerShell 5.1
+  encoded with the OEM code page (both scripts now also force UTF-8 console output).
+- `POST /api/dsh-desktop/cleanup` answers 409 when nothing is installed in that home.
+
+### Added
+- Tests: the suite now pins `USERPROFILE`/`APPDATA` to a sandbox (and asserts the shell folders stay
+  inside it), runs the **real PowerShell script** against sandbox folders with `spawnRunner` and
+  checks the four links plus the manifest, covers the dry-run seam and the manifest-scoped deletion.
+  50 → 57 checks.
+
 ## [1.1.2] — 2026-09-15
 
 ### Fixed
@@ -131,3 +157,4 @@ First release: turn the DeepSeek Harness Web UI into a native desktop applicatio
 [1.1.0]: https://github.com/RINGOLINK/dsh-desktop-shell/releases/tag/v1.1.0
 [1.1.1]: https://github.com/RINGOLINK/dsh-desktop-shell/releases/tag/v1.1.1
 [1.1.2]: https://github.com/RINGOLINK/dsh-desktop-shell/releases/tag/v1.1.2
+[1.1.3]: https://github.com/RINGOLINK/dsh-desktop-shell/releases/tag/v1.1.3

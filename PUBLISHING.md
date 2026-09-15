@@ -141,7 +141,7 @@ git push -u origin main
 
 ## 2. 发布前检查清单
 
-- [ ] `node test/install.test.mjs` 全绿（50 项，含 `[package identity]` 身份与版本一致性守卫、`[autostart]` 登录自启默认关闭、`[checksums]` 随包二进制哈希核对、`[browser half]` 装载器 id/双语字典/按钮门控/行布局契约）
+- [ ] `node test/install.test.mjs` 全绿（57 项，含 `[package identity]` 身份与版本一致性守卫、`[autostart]` 登录自启默认关闭、`[checksums]` 随包二进制哈希核对、`[browser half]` 装载器 id/双语字典/按钮门控/行布局契约、`[shortcuts · live]` 真机 PowerShell 冒烟与沙箱隔离断言）
 - [ ] **四个名字完全一致**（改包名或换 scope 时必须同步改）：
       `package.json` 的 `name` · `cordis.patch.yml` insert 行的 `name` ·
       `lib/client.js` 里 `__ModuleLoader__.load({ id })` · 宿主 `lib/index.js` 的 `export const name`

@@ -28,6 +28,20 @@ mkdirSync(folders.desktopDir, { recursive: true });
 mkdirSync(folders.startupDir, { recursive: true });
 mkdirSync(folders.programsDir, { recursive: true });
 
+// Isolate the WHOLE environment, not just DSH_DESKTOP_HOME: the installer resolves the shell
+// folders (Desktop / Startup / Programs) from USERPROFILE and APPDATA, so any code path that
+// forgets an explicit folder override must still land inside this sandbox. Without this, a route
+// level cleanup during the suite deleted the user's real desktop and start-menu shortcuts.
+process.env.USERPROFILE = root;
+process.env.APPDATA = join(root, "AppData", "Roaming");
+for (const dir of [
+  join(root, "Desktop"),
+  join(root, "AppData", "Roaming", "Microsoft", "Windows", "Start Menu", "Programs"),
+  join(root, "AppData", "Roaming", "Microsoft", "Windows", "Start Menu", "Programs", "Startup")
+]) {
+  mkdirSync(dir, { recursive: true });
+}
+
 // Pin the dsh bin the host half resolves, so the suite is deterministic on machines (and CI
 // runners) where DSH is not installed — the host route would otherwise fail to build a helper.
 const fakeDshDir = join(root, "fake-dsh");
@@ -159,6 +173,96 @@ check("createShortcuts: dryRun returns the script without writing", () => {
   assert.equal(result.dryRun, true);
   assert.ok(result.script.includes("DSHLauncher.exe"));
 });
+check("shortcut script keeps the Startup switch and its body variable apart (case-insensitive names)", () => {
+  const script = install.renderShortcutScript();
+  assert.ok(script.includes("[switch]$Startup"), "the opt-in switch stays");
+  assert.ok(script.includes("[string]$StartupPath"), "the folder override stays");
+  // PowerShell variables are case-insensitive: `$startup = <string>` while a [switch]$Startup
+  // parameter exists aborts the whole script (this silently skipped the start-menu shortcut).
+  assert.ok(!/\$startup\s*=\s*\[Environment\]/.test(script), "no string assignment to the switch name");
+  assert.ok(script.includes("$startupDir = if ($StartupPath)"), "body variable is distinctly named");
+
+  const startupScript = install.renderStartupShortcutScript();
+  assert.ok(startupScript.includes("[string]$StartupPath"), "startup-only script takes a folder override");
+  assert.ok(startupScript.includes("Write-Output (\"shortcut: \""), "reports the created path");
+});
+
+// ---------------- real PowerShell execution (sandbox folders, no dry-run runner) ----------------
+console.log("[shortcuts · live]");
+const liveHome = join(root, "live-home");
+const liveShim = join(liveHome, "shim");
+mkdirSync(liveShim, { recursive: true });
+// A real launcher payload is not needed: the script only embeds the exe path into the link.
+writeFileSync(join(liveHome, "DSHLauncher.exe"), "stub", "utf8");
+writeFileSync(join(liveHome, "DSHLauncher.ico"), "stub", "utf8");
+writeFileSync(join(liveHome, "DSHLauncher-debug.ico"), "stub", "utf8");
+const liveFolders = {
+  desktopDir: join(root, "live-desktop"),
+  startupDir: join(root, "live-startup"),
+  programsDir: join(root, "live-programs")
+};
+for (const dir of Object.values(liveFolders)) mkdirSync(dir, { recursive: true });
+const liveResult = process.platform === "win32"
+  ? install.createShortcuts({ home: liveHome, startup: true, runner: install.spawnRunner, ...liveFolders })
+  : { ok: true, skipped: true, created: [], output: "", error: "" };
+check("live script run creates desktop/debug/sign-in/start-menu links and exits 0", () => {
+  if (liveResult.skipped) return; // PowerShell only exists on Windows
+  assert.equal(liveResult.ok, true, "exit status " + liveResult.status + " stderr: " + liveResult.error);
+  assert.equal(liveResult.error, "", "no stderr");
+  assert.ok(liveResult.created.length >= 4, "reported every created link: " + JSON.stringify(liveResult.created));
+  assert.ok(existsSync(join(liveFolders.desktopDir, install.SHORTCUTS.main)));
+  assert.ok(existsSync(join(liveFolders.desktopDir, install.SHORTCUTS.debug)));
+  assert.ok(existsSync(join(liveFolders.startupDir, install.SHORTCUTS.startup)), "sign-in link created when requested");
+  assert.ok(existsSync(join(liveFolders.programsDir, install.SHORTCUTS.startMenu)), "start-menu link created");
+});
+check("live script run records a shortcut manifest for that home", () => {
+  if (liveResult.skipped) return;
+  const manifest = install.readShortcutManifest({ home: liveHome });
+  assert.ok(manifest !== null, "manifest written");
+  assert.equal(manifest.main, join(liveFolders.desktopDir, install.SHORTCUTS.main));
+  assert.equal(manifest.debug, join(liveFolders.desktopDir, install.SHORTCUTS.debug), "the Chinese-named debug link is recorded too");
+  assert.equal(manifest.startup, join(liveFolders.startupDir, install.SHORTCUTS.startup));
+  assert.equal(manifest.startMenu, join(liveFolders.programsDir, install.SHORTCUTS.startMenu));
+});
+check("shell folders resolve inside the test sandbox", () => {
+  const f = install.shellFolders();
+  for (const [name, dir] of Object.entries(f)) assert.ok(dir.startsWith(root), name + " escaped the sandbox: " + dir);
+});
+check("test mode reports deletions instead of performing them", () => {
+  const dryFolders = {
+    desktopDir: join(root, "dry-desktop"),
+    startupDir: join(root, "dry-startup"),
+    programsDir: join(root, "dry-programs")
+  };
+  for (const dir of Object.values(dryFolders)) mkdirSync(dir, { recursive: true });
+  const link = join(dryFolders.desktopDir, install.SHORTCUTS.main);
+  writeFileSync(link, "stub", "utf8");
+  const reported = install.removeShortcuts({ home: join(root, "dry-home"), ...dryFolders });
+  assert.equal(reported.dryRun, true, "test mode defaults to report-only");
+  assert.ok(reported.wouldRemove.includes(link), "reports the path it would delete");
+  assert.deepEqual(reported.removed, []);
+  assert.ok(existsSync(link), "nothing was deleted");
+  const performed = install.removeShortcuts({ home: join(root, "dry-home"), dryRun: false, ...dryFolders });
+  assert.equal(performed.dryRun, false, "an explicit dryRun:false performs the removal");
+  assert.equal(existsSync(link), false);
+});
+check("a shortcut manifest scopes deletion to the links this home created", () => {
+  const mHome = join(root, "manifest-home");
+  const mFolders = {
+    desktopDir: join(root, "m-desktop"),
+    startupDir: join(root, "m-startup"),
+    programsDir: join(root, "m-programs")
+  };
+  for (const dir of Object.values(mFolders)) mkdirSync(dir, { recursive: true });
+  const owned = join(mFolders.desktopDir, install.SHORTCUTS.main);
+  const stray = join(mFolders.desktopDir, "Some Other App.lnk");
+  writeFileSync(owned, "stub", "utf8");
+  writeFileSync(stray, "stub", "utf8");
+  install.writeShortcutManifest([owned], { home: mHome, ...mFolders });
+  const report = install.removeShortcuts({ home: mHome, dryRun: false, ...mFolders });
+  assert.equal(existsSync(owned), false, "the recorded link is removed");
+  assert.ok(existsSync(stray), "an unrecorded link in the same folder survives");
+});
 
 // ---------------- sign-in autostart (off by default) ----------------
 console.log("[autostart]");
@@ -169,7 +273,7 @@ check("readPreferences: autostart is off when nothing was ever configured", () =
 });
 check("setAutostart(false): deletes the sign-in shortcut and keeps the preference off", () => {
   writeFileSync(startupLink, "stub", "utf8");
-  const result = install.setAutostart(false, { home, runner: okRunner, ...folders });
+  const result = install.setAutostart(false, { home, runner: okRunner, dryRun: false, ...folders });
   assert.equal(result.ok, true);
   assert.equal(result.autostart, false);
   assert.equal(existsSync(startupLink), false, "startup shortcut removed");
@@ -211,8 +315,9 @@ check("cleanupInstall: removes every owned artifact but never the user's Edge sh
   writeFileSync(join(stagingFolders.desktopDir, install.SHORTCUTS.debug), "stub", "utf8");
   writeFileSync(join(stagingFolders.startupDir, install.SHORTCUTS.startup), "stub", "utf8");
   writeFileSync(join(stagingFolders.programsDir, install.SHORTCUTS.startMenu), "stub", "utf8");
-  const report = install.cleanupInstall({ home: staging, ...stagingFolders });
+  const report = install.cleanupInstall({ home: staging, dryRun: false, ...stagingFolders });
   assert.equal(report.ok, true, JSON.stringify(report.problems));
+  assert.equal(report.dryRun, false);
   assert.equal(report.homeRemoved, true, "launcher home deleted");
   assert.equal(report.removed.length, 4, "desktop + debug + sign-in + start-menu removed");
   assert.equal(existsSync(staging), false, "launcher home gone");
@@ -391,11 +496,21 @@ check("POST /cleanup: refuses while the launcher is running", () => {
 rmSync(join(home, "launcher.state.json"), { force: true });
 const cleanupRes = fakeRes();
 await route("/api/dsh-desktop/cleanup").handler(fakeReq({ method: "POST", body: {} }), cleanupRes);
-check("POST /cleanup: removes shortcuts and the launcher home", () => {
+check("POST /cleanup: reports the removal instead of deleting while in test mode", () => {
   assert.equal(cleanupRes.status, 200, JSON.stringify(cleanupRes.body));
-  assert.equal(cleanupRes.body.homeRemoved, true);
-  assert.equal(existsSync(home), false, "launcher home gone");
+  assert.equal(cleanupRes.body.dryRun, true, "the route honours the destructive test seam");
+  assert.equal(existsSync(home), true, "nothing was deleted");
+  assert.deepEqual(cleanupRes.body.removed, []);
 });
+// The route only accepts a cleanup for an actual installation.
+process.env.DSH_DESKTOP_HOME = join(root, "never-installed");
+mkdirSync(process.env.DSH_DESKTOP_HOME, { recursive: true });
+const cleanupUninstalled = fakeRes();
+await route("/api/dsh-desktop/cleanup").handler(fakeReq({ method: "POST", body: {} }), cleanupUninstalled);
+check("POST /cleanup: refuses when nothing is installed in that home", () => {
+  assert.equal(cleanupUninstalled.status, 409, JSON.stringify(cleanupUninstalled.body));
+});
+process.env.DSH_DESKTOP_HOME = home;
 
 // ---------------- shipped binary checksums (prebuilt exe provenance) ----------------
 // The launcher exe is prebuilt; SHA256SUMS.txt pins it (and the DLLs/icons) so the published
