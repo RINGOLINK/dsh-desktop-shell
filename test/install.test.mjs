@@ -4,7 +4,7 @@ process.env.DSH_DESKTOP_TEST = "1";
 process.env.DSH_DESKTOP_NO_AUTOINSTALL = "1";
 
 import assert from "node:assert";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -17,7 +17,10 @@ const check = (label, fn) => {
   catch (error) { failures++; console.log("  FAIL  " + label + " -> " + (error?.message ?? error)); }
 };
 
-const root = mkdtempSync(join(tmpdir(), "dsh-desktop-test-"));
+// Resolve the sandbox to its LONG path: `WScript.Shell.CreateShortcut(...).Save()` fails with
+// FileNotFoundException when the folder is expressed with an 8.3 short name (CI runners set
+// TEMP=C:\Users\RUNNER~1\...), which would make the live shortcut test fail for the wrong reason.
+const root = realpathSync.native(mkdtempSync(join(tmpdir(), "dsh-desktop-test-")));
 const home = join(root, "home");
 const folders = {
   desktopDir: join(root, "desktop"),
